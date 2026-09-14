@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
@@ -9,6 +9,7 @@ import {
   setLastReceivedMessage,
 } from '@/redux/features/chat/slice';
 import { connectSocket, getSocket, disconnectSocket } from '@/services/socket.service';
+import { getAvatarUrl } from '@/services/apiClient';
 
 /**
  * GlobalMessageListener
@@ -25,6 +26,9 @@ export default function GlobalMessageListener() {
 
   const activeChatKeyRef = useRef<string | null>(null);
   activeChatKeyRef.current = activeChatKey;
+
+  const receiveMessageRef = useRef<((msg: any) => void) | null>(null);
+  const messagesReadRef = useRef<(() => void) | null>(null);
 
   // Initialize socket and listeners when authenticated
   useEffect(() => {
@@ -48,21 +52,28 @@ export default function GlobalMessageListener() {
         const handleReceiveMessage = (msg: any) => {
           if (!msg) return;
 
+          console.log('[GlobalMessageListener] Received incoming message:', msg);
+
           // Dispatch to redux so chat screens can react
           dispatch(setLastReceivedMessage(msg));
 
           const currentOpenChat = activeChatKeyRef.current;
-          const msgSenderKey = `${String(msg.sender_role).toLowerCase()}_${Number(msg.sender)}`;
+          const msgSenderKey = `${String(msg.sender_role || '').toLowerCase()}_${Number(msg.sender)}`;
+
+          console.log(
+            `[GlobalMessageListener] currentOpenChat: "${currentOpenChat}", msgSenderKey: "${msgSenderKey}"`
+          );
 
           // If the user is currently inside the active chat with this sender, do not alert or increment
           if (currentOpenChat && currentOpenChat.toLowerCase() === msgSenderKey) {
+            console.log('[GlobalMessageListener] Notification suppressed: chat currently active on screen');
             return;
           }
 
           // Otherwise, increment unread badge count
           dispatch(incrementUnreadCount());
 
-          // Display in-app notification toast
+          // Display rich in-app notification banner
           const senderName =
             msg.sender_name ||
             (msg.sender_role
@@ -70,26 +81,58 @@ export default function GlobalMessageListener() {
               : 'New Message');
           const messagePreview =
             msg.message || (msg.file ? '📎 Sent an attachment' : 'Sent you a message');
+          const rawPic = msg.sender_picture || msg.picture || msg.avatar;
+          const avatarUrl = rawPic ? getAvatarUrl(rawPic, msg.sender_gender) : null;
 
-          Toast.show({
-            type: 'info',
-            text1: `💬 ${senderName}`,
-            text2: messagePreview,
-            visibilityTime: 4500,
-            onPress: () => {
-              Toast.hide();
-              router.push('/(main)/(drawer)/(tabs)/message');
-            },
-          });
+          try {
+            Toast.show({
+              type: 'chat_message',
+              text1: senderName,
+              text2: messagePreview,
+              visibilityTime: 5500,
+              topOffset: Platform.OS === 'ios' ? 52 : 36,
+              props: {
+                senderId: msg.sender,
+                senderRole: msg.sender_role,
+                avatarUrl,
+                time: 'Just now',
+              },
+              onPress: () => {
+                Toast.hide();
+                router.push({
+                  pathname: '/(main)/(drawer)/(tabs)/message',
+                  params: {
+                    contactId: String(msg.sender),
+                    role: String(msg.sender_role || '').toLowerCase(),
+                  },
+                });
+              },
+            });
+          } catch (toastErr) {
+            console.warn('[GlobalMessageListener] Failed to show chat_message toast, using fallback:', toastErr);
+            Toast.show({
+              type: 'info',
+              text1: senderName,
+              text2: messagePreview,
+              visibilityTime: 4000,
+            });
+          }
         };
 
         const handleMessagesRead = () => {
           dispatch(fetchUnreadCount());
         };
 
-        // Remove any prior listeners before attaching to avoid duplicate calls
-        socket.off('receive_message', handleReceiveMessage);
-        socket.off('messages_read', handleMessagesRead);
+        // Remove any prior listeners registered by this listener before attaching new ones
+        if (receiveMessageRef.current) {
+          socket.off('receive_message', receiveMessageRef.current);
+        }
+        if (messagesReadRef.current) {
+          socket.off('messages_read', messagesReadRef.current);
+        }
+
+        receiveMessageRef.current = handleReceiveMessage;
+        messagesReadRef.current = handleMessagesRead;
 
         socket.on('receive_message', handleReceiveMessage);
         socket.on('messages_read', handleMessagesRead);
@@ -118,8 +161,14 @@ export default function GlobalMessageListener() {
       appStateSubscription.remove();
       const socket = getSocket();
       if (socket) {
-        socket.off('receive_message');
-        socket.off('messages_read');
+        if (receiveMessageRef.current) {
+          socket.off('receive_message', receiveMessageRef.current);
+          receiveMessageRef.current = null;
+        }
+        if (messagesReadRef.current) {
+          socket.off('messages_read', messagesReadRef.current);
+          messagesReadRef.current = null;
+        }
       }
     };
   }, [token, isAuthenticated, dispatch, router]);

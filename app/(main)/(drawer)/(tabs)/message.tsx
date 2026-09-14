@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { setActiveChatKey, fetchUnreadCount } from '@/redux/features/chat/slice';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
@@ -39,23 +39,23 @@ export interface Contact {
   name: string;
   role: 'admin' | 'parent' | 'student';
   picture: string | null;
-  email?: string;
   phone?: string;
-  designation?: string;
-  child_name?: string;
-  code?: string;
-  class_name?: string;
-  section_name?: string;
+  email?: string;
   last_message: string | null;
   last_message_time: string | null;
   last_message_seen: number | null;
-  last_message_is_outgoing: boolean;
+  last_message_is_outgoing?: boolean;
   unread_count: number;
-  is_online: boolean;
+  is_online?: boolean;
+  designation?: string;
+  child_name?: string;
+  class_name?: string;
+  section_name?: string;
+  code?: string;
 }
 
 export interface ChatMessage {
-  id: number | string;
+  id?: number;
   school_id?: number;
   sender: number;
   sender_role: string;
@@ -72,12 +72,17 @@ export interface ChatMessage {
 
 export default function MessageScreen() {
   const { colors, isDark } = useAppTheme();
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const token = useAppSelector((state) => state.auth.token);
   const currentUser = useAppSelector((state) => state.auth.user);
   const currentUserId = Number(currentUser?.id || 1);
+  const params = useLocalSearchParams<{ contactId?: string; role?: string }>();
+  const autoOpenedContactIdRef = useRef<string | null>(null);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const contactsRef = useRef<Contact[]>([]);
+  contactsRef.current = contacts;
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -177,13 +182,13 @@ export default function MessageScreen() {
   // Socket Connection and Event Listeners
   useEffect(() => {
     let activeSocket: any = null;
+    let handlers: { [key: string]: (...args: any[]) => void } = {};
 
     const setupSocket = async () => {
       activeSocket = await connectSocket(token || undefined);
       if (!activeSocket) return;
 
-      // Handle incoming message
-      activeSocket.on('receive_message', (newMsg: ChatMessage) => {
+      const handleReceiveMessage = (newMsg: ChatMessage) => {
         const activeChat = selectedContactRef.current;
 
         // If the chat is open with the sender
@@ -236,10 +241,9 @@ export default function MessageScreen() {
             return a.name.localeCompare(b.name);
           });
         });
-      });
+      };
 
-      // Handle message sent confirmation (e.g. from another tab or current tab)
-      activeSocket.on('message_sent', (sentMsg: ChatMessage) => {
+      const handleMessageSent = (sentMsg: ChatMessage) => {
         const activeChat = selectedContactRef.current;
         if (
           activeChat &&
@@ -251,10 +255,9 @@ export default function MessageScreen() {
             return [...prev, sentMsg];
           });
         }
-      });
+      };
 
-      // Handle read receipts
-      activeSocket.on('messages_read', ({ readerId, readerRole }: any) => {
+      const handleMessagesRead = ({ readerId, readerRole }: any) => {
         const activeChat = selectedContactRef.current;
         if (
           activeChat &&
@@ -274,10 +277,9 @@ export default function MessageScreen() {
               : c
           )
         );
-      });
+      };
 
-      // Handle online status
-      activeSocket.on('user_online', ({ userId, role }: any) => {
+      const handleUserOnline = ({ userId, role }: any) => {
         setContacts((prev) =>
           prev.map((c) =>
             c.id === Number(userId) && c.role.toLowerCase() === String(role).toLowerCase()
@@ -285,9 +287,9 @@ export default function MessageScreen() {
               : c
           )
         );
-      });
+      };
 
-      activeSocket.on('user_offline', ({ userId, role }: any) => {
+      const handleUserOffline = ({ userId, role }: any) => {
         setContacts((prev) =>
           prev.map((c) =>
             c.id === Number(userId) && c.role.toLowerCase() === String(role).toLowerCase()
@@ -295,9 +297,9 @@ export default function MessageScreen() {
               : c
           )
         );
-      });
+      };
 
-      activeSocket.on('online_users_list', (onlineKeys: string[]) => {
+      const handleOnlineUsersList = (onlineKeys: string[]) => {
         if (!Array.isArray(onlineKeys)) return;
         const set = new Set(onlineKeys.map((k) => k.toLowerCase()));
         setContacts((prev) =>
@@ -306,10 +308,9 @@ export default function MessageScreen() {
             is_online: set.has(`${c.role.toLowerCase()}_${c.id}`),
           }))
         );
-      });
+      };
 
-      // Typing indicators
-      activeSocket.on('user_typing', ({ senderId, senderRole }: any) => {
+      const handleUserTyping = ({ senderId, senderRole }: any) => {
         const activeChat = selectedContactRef.current;
         if (
           activeChat &&
@@ -318,9 +319,9 @@ export default function MessageScreen() {
         ) {
           setIsContactTyping(true);
         }
-      });
+      };
 
-      activeSocket.on('user_stop_typing', ({ senderId, senderRole }: any) => {
+      const handleUserStopTyping = ({ senderId, senderRole }: any) => {
         const activeChat = selectedContactRef.current;
         if (
           activeChat &&
@@ -329,6 +330,21 @@ export default function MessageScreen() {
         ) {
           setIsContactTyping(false);
         }
+      };
+
+      handlers = {
+        receive_message: handleReceiveMessage,
+        message_sent: handleMessageSent,
+        messages_read: handleMessagesRead,
+        user_online: handleUserOnline,
+        user_offline: handleUserOffline,
+        online_users_list: handleOnlineUsersList,
+        user_typing: handleUserTyping,
+        user_stop_typing: handleUserStopTyping,
+      };
+
+      Object.entries(handlers).forEach(([event, fn]) => {
+        activeSocket.on(event, fn);
       });
     };
 
@@ -336,17 +352,12 @@ export default function MessageScreen() {
 
     return () => {
       if (activeSocket) {
-        activeSocket.off('receive_message');
-        activeSocket.off('message_sent');
-        activeSocket.off('messages_read');
-        activeSocket.off('user_online');
-        activeSocket.off('user_offline');
-        activeSocket.off('online_users_list');
-        activeSocket.off('user_typing');
-        activeSocket.off('user_stop_typing');
+        Object.entries(handlers).forEach(([event, fn]) => {
+          activeSocket.off(event, fn);
+        });
       }
     };
-  }, [token, currentUserId]);
+  }, [token, currentUserId, dispatch]);
 
   useEffect(() => {
     return () => {
@@ -358,6 +369,20 @@ export default function MessageScreen() {
     useCallback(() => {
       fetchContacts();
       dispatch(fetchUnreadCount());
+
+      // If chat is open when tab is focused, restore activeChatKey
+      if (selectedContactRef.current) {
+        dispatch(
+          setActiveChatKey(
+            `${selectedContactRef.current.role.toLowerCase()}_${selectedContactRef.current.id}`
+          )
+        );
+      }
+
+      return () => {
+        // Clear activeChatKey on blur/leave so global notifications are NOT suppressed on other screens
+        dispatch(setActiveChatKey(null));
+      };
     }, [fetchContacts, dispatch])
   );
 
@@ -407,6 +432,50 @@ export default function MessageScreen() {
     }).catch(() => {});
   };
 
+  // Handle opening chat ONLY when explicitly navigated from in-app notification tap
+  useEffect(() => {
+    const contactIdStr = params?.contactId;
+    if (!contactIdStr) return;
+
+    const targetKey = `${contactIdStr}_${params.role || ''}`;
+    if (autoOpenedContactIdRef.current === targetKey) return;
+    autoOpenedContactIdRef.current = targetKey;
+
+    // Immediately clear route params so future incoming messages or contacts updates NEVER re-trigger this
+    router.setParams({ contactId: '', role: '' });
+
+    const targetId = Number(contactIdStr);
+    const targetRole = String(params.role || '').toLowerCase();
+
+    const currentContacts = contactsRef.current;
+    const match = currentContacts.find(
+      (c) =>
+        c.id === targetId &&
+        (!targetRole || c.role.toLowerCase() === targetRole)
+    );
+
+    if (match) {
+      handleOpenChat(match);
+    } else {
+      // If not yet in contacts list, synthesize a temporary contact so chat can open
+      const tempContact: Contact = {
+        id: targetId,
+        name: params.role
+          ? `${params.role.charAt(0).toUpperCase() + params.role.slice(1)} #${targetId}`
+          : `User #${targetId}`,
+        role: (targetRole || 'parent') as Contact['role'],
+        picture: null,
+        last_message: null,
+        last_message_time: null,
+        last_message_seen: null,
+        last_message_is_outgoing: false,
+        unread_count: 0,
+        is_online: false,
+      };
+      handleOpenChat(tempContact);
+    }
+  }, [params?.contactId, params?.role, router]);
+
   // Close conversation
   const handleCloseChat = () => {
     if (selectedContact) {
@@ -415,6 +484,8 @@ export default function MessageScreen() {
     dispatch(setActiveChatKey(null));
     dispatch(fetchUnreadCount());
     setSelectedContact(null);
+    autoOpenedContactIdRef.current = null;
+    router.setParams({ contactId: '', role: '' });
     setChatMessages([]);
     setInputMessage('');
     setSelectedAttachment(null);

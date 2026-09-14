@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Image, Text, Platform, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Image, Text, Platform, Alert } from 'react-native';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import {
 } from 'react-native-popup-menu';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/constants/theme';
-import { useAppDispatch, useAppSelector } from '@/redux/hooks';
+import { useAppDispatch } from '@/redux/hooks';
 import { logout } from '@/redux/features/auth/slice';
 import Toast from 'react-native-toast-message';
 
@@ -20,7 +20,6 @@ export default function AppHeader() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { colors, isDark } = useAppTheme();
-  const unreadCount = useAppSelector((state) => state.chat?.unreadCount || 0);
 
   const handleLogout = () => {
     Alert.alert(
@@ -68,21 +67,6 @@ export default function AppHeader() {
         </View>
 
         <View style={styles.rightContainer}>
-          <TouchableOpacity
-            style={[styles.headerIconButton, { backgroundColor: colors.surfaceSubtle }]}
-            onPress={() => router.push('/(main)/(drawer)/(tabs)/message')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chatbubbles-outline" size={20} color={colors.icon} />
-            {unreadCount > 0 && (
-              <View style={styles.headerBadge}>
-                <Text style={styles.headerBadgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
           <Menu>
             <MenuTrigger customStyles={triggerStyles}>
               <View style={[styles.triggerCircle, { backgroundColor: colors.surfaceSubtle }]}>
@@ -149,8 +133,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   leftContainer: {
-    width: 76,
+    width: 48,
     alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   centerContainer: {
     flex: 1,
@@ -158,39 +143,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightContainer: {
-    width: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 6,
-  },
-  headerIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 48,
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  headerBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    backgroundColor: '#EF4444',
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  headerBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'center',
   },
   triggerCircle: {
     width: 36,

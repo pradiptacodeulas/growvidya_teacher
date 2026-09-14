@@ -13,13 +13,28 @@ import { View } from "react-native";
 import "react-native-gesture-handler";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MenuProvider } from "react-native-popup-menu";
-import Toast from "react-native-toast-message";
+import Toast, { ToastConfig } from "react-native-toast-message";
 import { Provider } from "react-redux";
 import { useAppTheme } from "@/constants/theme";
 import GlobalMessageListener from "@/components/GlobalMessageListener";
+import InAppChatNotification from "@/components/InAppChatNotification";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+const toastConfig: ToastConfig = {
+  chat_message: ({ text1, text2, props, onPress }) => (
+    <InAppChatNotification
+      senderName={text1}
+      message={text2}
+      avatarUrl={props?.avatarUrl}
+      senderRole={props?.senderRole}
+      time={props?.time || 'Just now'}
+      onPress={onPress}
+      onClose={() => Toast.hide()}
+    />
+  ),
+};
 
 function RootAppContent() {
   const { colors } = useAppTheme();
@@ -34,7 +49,7 @@ function RootAppContent() {
           contentStyle: { backgroundColor: colors.background },
         }}
       />
-      <Toast />
+      <Toast config={toastConfig} />
     </View>
   );
 }
