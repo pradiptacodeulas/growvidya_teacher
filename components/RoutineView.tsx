@@ -43,6 +43,7 @@ const formatPeriodTime = (startTime: string, endTime: string) => {
 
 export default function RoutineView({ showTitleBanner = false }: RoutineViewProps) {
   const token = useAppSelector(state => state.auth.token);
+  const user = useAppSelector(state => state.auth.user);
   const { colors } = useAppTheme();
   const [routine, setRoutine] = useState<DayRoutine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -85,12 +86,13 @@ export default function RoutineView({ showTitleBanner = false }: RoutineViewProp
             });
           });
 
+          const dynamicSchoolId = String(user?.school_id || "");
           const dayRoutines: DayRoutine[] = [];
           map.forEach((classes, day_name) => {
             if (classes.length > 0) {
               dayRoutines.push({
                 id: day_name,
-                school_id: '1',
+                school_id: dynamicSchoolId,
                 day_name,
                 status: '1',
                 class: classes,
@@ -110,7 +112,7 @@ export default function RoutineView({ showTitleBanner = false }: RoutineViewProp
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, user]);
 
   useFocusEffect(
     useCallback(() => {

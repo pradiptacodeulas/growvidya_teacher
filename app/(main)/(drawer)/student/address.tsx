@@ -205,7 +205,7 @@ export default function StudentAddressScreen() {
           <View style={[styles.card, { marginTop: 16 }]}>
             <Text style={styles.sectionHeading}>Permanent Address</Text>
             <View style={styles.divider} />
-            {permanentAddressObj?.same_permanent === '1' ? (
+            {String(permanentAddressObj?.same_permanent) === '1' || Number(permanentAddressObj?.same_permanent) === 1 ? (
               <View style={styles.sameAddressContainer}>
                 <Text style={styles.sameAddressText}>Same as Present Address</Text>
                 <Text style={styles.value}>{permanentAddress}</Text>

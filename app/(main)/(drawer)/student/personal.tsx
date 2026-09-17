@@ -128,7 +128,8 @@ export default function StudentPersonalScreen() {
   const academicEnd = formatDate(personalData?.academic_end_date);
   const contactNo = personalData?.primary_contact_number || 'N/A';
   const emailAddr = personalData?.email_address || 'N/A';
-  const statusLabel = personalData?.status === '1' ? 'Active' : 'Inactive';
+  const isActive = String(personalData?.status) === '1' || Number(personalData?.status) === 1 || String(personalData?.status).toLowerCase() === 'active';
+  const statusLabel = isActive ? 'Active' : 'Inactive';
 
   return (
     <View style={styles.container}>

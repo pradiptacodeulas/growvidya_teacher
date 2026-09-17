@@ -4,9 +4,7 @@ import StudentFilter from "@/components/StudentFilter";
 import SelectionBottomSheet from "@/components/common/SelectionBottomSheet";
 import {
   clearSections,
-  clearStudentSelection,
   resetStudentState,
-  toggleStudentSelection,
 } from "@/redux/features/students/slice";
 import {
   fetchClasses,
@@ -20,12 +18,12 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  Vibration,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -37,7 +35,6 @@ export default function WardScreen() {
   const { colors } = useAppTheme();
   const {
     students,
-    selectedIds,
     isLoading,
     isLoadingMore,
     error,
@@ -61,9 +58,6 @@ export default function WardScreen() {
   const classBottomSheetRef = useRef<BottomSheetModal>(null);
   const sectionBottomSheetRef = useRef<BottomSheetModal>(null);
 
-  const selectedCount = selectedIds.length;
-  const isSelectionMode = selectedCount > 0;
-
   useEffect(() => {
     if (token) {
       dispatch(fetchClasses());
@@ -80,7 +74,7 @@ export default function WardScreen() {
 
   const handleOpenSection = () => {
     if (!filters.class) {
-      alert("Please select a class first.");
+      Alert.alert("Class Required", "Please select a class first.");
       return;
     }
     sectionBottomSheetRef.current?.present();
@@ -143,20 +137,7 @@ export default function WardScreen() {
   };
 
   const handlePress = (id: string) => {
-    if (isSelectionMode) {
-      dispatch(toggleStudentSelection(id));
-    } else {
-      router.push(`/(main)/(drawer)/student/${id}`);
-    }
-  };
-
-  const handleLongPress = (id: string) => {
-    Vibration.vibrate(50);
-    dispatch(toggleStudentSelection(id));
-  };
-
-  const clearSelection = () => {
-    dispatch(clearStudentSelection());
+    router.push(`/(main)/(drawer)/student/${id}`);
   };
 
   const renderFooter = () => {
@@ -171,33 +152,7 @@ export default function WardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <InternalHeader
-        title={isSelectionMode ? `${selectedCount} Selected` : "Students"}
-      />
-
-      {isSelectionMode && (
-        <View style={[styles.selectionBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={clearSelection}
-            style={styles.selectionAction}
-          >
-            <Ionicons name="close" size={20} color={colors.text} />
-            <Text style={[styles.selectionActionText, { color: colors.text }]}>Cancel</Text>
-          </TouchableOpacity>
-          <View style={styles.bulkActions}>
-            <TouchableOpacity style={[styles.bulkActionBtn, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="mail-outline" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.bulkActionBtn, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={20}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <InternalHeader title="Students" />
 
       {error ? (
         <View style={styles.errorContainer}>
@@ -220,10 +175,7 @@ export default function WardScreen() {
           renderItem={({ item }) => (
             <StudentCard
               student={item}
-              isSelected={selectedIds.includes(item.id)}
-              selectionMode={isSelectionMode}
               onPress={() => handlePress(item.id)}
-              onLongPress={() => handleLongPress(item.id)}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -293,34 +245,6 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 30,
-  },
-  selectionBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  selectionAction: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  selectionActionText: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  bulkActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  bulkActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
   },
   loadingContainer: {
     flex: 1,

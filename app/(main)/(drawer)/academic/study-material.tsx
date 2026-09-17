@@ -481,14 +481,6 @@ export default function StudyMaterialScreen() {
     setShowDeleteConfirmModal(true);
   };
 
-  // Dummy Edit handler
-  const handleEditMaterial = () => {
-    Toast.show({
-      type: "info",
-      text1: "Edit Study Material",
-      text2: "Edit feature coming soon",
-    });
-  };
 
   // Initial Load of Initial Filters
   useEffect(() => {
@@ -985,16 +977,8 @@ export default function StudyMaterialScreen() {
           </View>
         ) : null}
 
-        {/* Action Buttons: Edit (Dummy) & Delete */}
+        {/* Action Buttons: Delete */}
         <View style={styles.detailsActionRow}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton, { borderColor: colors.primary }]}
-            onPress={handleEditMaterial}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="create-outline" size={18} color={colors.primary} />
-            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Edit</Text>
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}

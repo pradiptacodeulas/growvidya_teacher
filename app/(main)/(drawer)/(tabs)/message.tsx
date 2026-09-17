@@ -75,7 +75,7 @@ export default function MessageScreen() {
   const dispatch = useAppDispatch();
   const token = useAppSelector((state) => state.auth.token);
   const currentUser = useAppSelector((state) => state.auth.user);
-  const currentUserId = Number(currentUser?.id || 1);
+  const currentUserId = currentUser?.id ? Number(currentUser.id) : 0;
   const params = useLocalSearchParams<{ contactId?: string; role?: string }>();
   const autoOpenedContactIdRef = useRef<string | null>(null);
 

@@ -343,6 +343,47 @@ export const formatUserFriendlyError = (error: any): string => {
   return cleanErrorMessage(error?.message || 'An unexpected error occurred. Please try again.');
 };
 
+let onUnauthorizedCallback: (() => void) | null = null;
+
+export const setOnUnauthorizedCallback = (callback: (() => void) | null): void => {
+  onUnauthorizedCallback = callback;
+};
+
+let isHandling401 = false;
+
+export const handleUnauthorizedSession = async (requestUrl?: string): Promise<void> => {
+  const url = requestUrl || '';
+  const isAuthEndpoint =
+    url.toLowerCase().includes('/auth/login') ||
+    url.toLowerCase().includes('/auth/signin') ||
+    url.toLowerCase().endsWith('/login');
+
+  if (isAuthEndpoint) {
+    return;
+  }
+
+  if (isHandling401) {
+    return;
+  }
+  isHandling401 = true;
+
+  try {
+    setAuthToken(null);
+    delete apiClient.defaults.headers.common['Authorization'];
+    await AsyncStorage.removeItem('user_data');
+
+    if (onUnauthorizedCallback) {
+      onUnauthorizedCallback();
+    }
+  } catch (err) {
+    console.warn('[handleUnauthorizedSession] Error during 401 session cleanup:', err);
+  } finally {
+    setTimeout(() => {
+      isHandling401 = false;
+    }, 3000);
+  }
+};
+
 // Response Interceptor: Normalize { success: true, data } into { status: true, data, message } and sort dropdowns
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -355,12 +396,17 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error) => {
     const url = error?.config?.url || 'unknown';
     const base = error?.config?.baseURL || '';
     const fullUrl = `${base}${url}`;
     const status = error?.response?.status;
     console.warn(`[API Error ${status || 'NET'}] ${error?.config?.method?.toUpperCase()} ${fullUrl}:`, error?.response?.data || error?.message);
+
+    if (status === 401) {
+      await handleUnauthorizedSession(url);
+    }
+
     const friendlyMessage = formatUserFriendlyError(error);
     const err = new Error(friendlyMessage);
     (err as any).response = error?.response;
@@ -420,6 +466,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
     if (json.status === undefined && json.success !== undefined) {
       json.status = json.success;
     }
+  }
+
+  if (response.status === 401) {
+    await handleUnauthorizedSession(cleanEndpoint);
   }
 
   return {

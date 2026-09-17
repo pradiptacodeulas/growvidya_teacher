@@ -32,6 +32,20 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const parseSelectedDate = (dateStr?: string): Date => {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d);
+    }
+  }
+  return new Date();
+};
+
 const formatDateDisplay = (dateStr: string) => {
   if (!dateStr) return 'Select Date';
   try {
@@ -242,7 +256,16 @@ export default function AttendanceScreen() {
 
   const handleDateChange = (event: any, date?: Date) => {
     setShowDatePicker(false);
-    if (date) {
+    if (date && event?.type !== 'dismissed') {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (date > today) {
+        Alert.alert(
+          'Invalid Date',
+          'Cannot view attendance for future dates.'
+        );
+        return;
+      }
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -588,9 +611,10 @@ export default function AttendanceScreen() {
       {/* Date Picker Modal */}
       {showDatePicker && (
         <DateTimePicker
-          value={selectedDate ? new Date(selectedDate) : new Date()}
+          value={parseSelectedDate(selectedDate)}
           mode="date"
           display="default"
+          maximumDate={new Date()}
           onChange={handleDateChange}
         />
       )}

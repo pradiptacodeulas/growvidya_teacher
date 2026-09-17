@@ -72,7 +72,24 @@ export default function HolidayScreen() {
           details: h.details || h.description || '',
         }));
 
-        holidayArray.sort((a, b) => new Date(a.from_date).getTime() - new Date(b.from_date).getTime());
+        const parseSafeDate = (dStr: string): Date | null => {
+          if (!dStr) return null;
+          const clean = dStr.trim().replace(' ', 'T');
+          const d = new Date(clean);
+          if (!isNaN(d.getTime())) return d;
+          const parts = dStr.split('-');
+          if (parts.length === 3) {
+            const parsed = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            if (!isNaN(parsed.getTime())) return parsed;
+          }
+          return null;
+        };
+
+        holidayArray.sort((a, b) => {
+          const timeA = parseSafeDate(a.from_date)?.getTime() ?? 0;
+          const timeB = parseSafeDate(b.from_date)?.getTime() ?? 0;
+          return timeA - timeB;
+        });
         setHolidays(holidayArray);
       } else {
         setHolidays([]);
@@ -97,23 +114,43 @@ export default function HolidayScreen() {
     }, [fetchHolidays])
   );
 
-  // Strip HTML tags helper
+  const parseSafeDate = (dStr: string): Date | null => {
+    if (!dStr) return null;
+    const clean = dStr.trim().replace(' ', 'T');
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d;
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      const parsed = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+  };
+
+  // Strip HTML tags helper and decode common entities
   const stripHtmlTags = (htmlStr: string) => {
     if (!htmlStr) return '';
     return htmlStr
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
       .replace(/<[^>]*>/g, '') // Remove all HTML tags
-      .replace(/&nbsp;/g, ' ')  // Replace HTML entities
       .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   };
 
   // Format date helper
   const formatDateString = (dateStr: string) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
+    const date = parseSafeDate(dateStr);
+    if (!date || isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
@@ -125,12 +162,14 @@ export default function HolidayScreen() {
     return `${formatDateString(from)} - ${formatDateString(to)}`;
   };
 
-  // Calculate holiday duration days
+  // Calculate holiday duration days safely without timezone offsets
   const getDurationDays = (from: string, to: string) => {
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    const diffTime = Math.abs(toDate.getTime() - fromDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const fromDate = parseSafeDate(from);
+    const toDate = parseSafeDate(to);
+    if (!fromDate || !toDate) return 1;
+    const utc1 = Date.UTC(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+    const utc2 = Date.UTC(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
+    const diffDays = Math.round(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24)) + 1;
     return diffDays;
   };
 

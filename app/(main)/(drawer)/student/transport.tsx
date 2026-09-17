@@ -86,7 +86,12 @@ export default function StudentTransportScreen() {
     );
   }
 
-  const hasRoute = transportData && transportData.status === '1';
+  const hasRoute = Boolean(
+    transportData &&
+      (String(transportData.status) === '1' ||
+        Number(transportData.status) === 1 ||
+        String(transportData.status).toLowerCase() === 'active')
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

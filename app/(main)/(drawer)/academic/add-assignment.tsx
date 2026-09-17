@@ -92,12 +92,12 @@ export default function AddAssignmentScreen() {
   }>();
 
   // Form Fields
-  const classId = params.classId || "1";
-  const sectionId = params.sectionId || "1";
-  const subjectId = params.subjectId || "1";
-  const className = params.className || "I";
-  const sectionName = params.sectionName || "A";
-  const subjectName = params.subjectName || "Subject";
+  const classId = params.classId || "";
+  const sectionId = params.sectionId || "";
+  const subjectId = params.subjectId || "";
+  const className = params.className || "";
+  const sectionName = params.sectionName || "";
+  const subjectName = params.subjectName || "";
 
   const handleBack = useCallback(() => {
     router.replace({
@@ -131,11 +131,8 @@ export default function AddAssignmentScreen() {
   );
 
   const [title, setTitle] = useState("");
-  const [assignmentTypeId, setAssignmentTypeId] = useState("1"); // Default 1: Homework
-  const [assignmentTypes, setAssignmentTypes] = useState<AssignmentTypeItem[]>([
-    { id: "1", school_id: "1", type_name: "Homework", status: "1", created_on: "" },
-    { id: "2", school_id: "1", type_name: "Classwork", status: "1", created_on: "" },
-  ]);
+  const [assignmentTypeId, setAssignmentTypeId] = useState("");
+  const [assignmentTypes, setAssignmentTypes] = useState<AssignmentTypeItem[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<boolean>(true);
 
   const [assignedDate, setAssignedDate] = useState(getTodayDateString());
@@ -441,6 +438,33 @@ export default function AddAssignmentScreen() {
         type: "error",
         text1: "Validation Error",
         text2: "Please add at least one question.",
+      });
+      return;
+    }
+
+    if (!assignmentTypeId) {
+      Toast.show({
+        type: "error",
+        text1: "Validation Error",
+        text2: "Please select an assignment type.",
+      });
+      return;
+    }
+
+    if (!classId || !sectionId || !subjectId) {
+      Toast.show({
+        type: "error",
+        text1: "Missing Information",
+        text2: "Class, Section, or Subject identifier is missing.",
+      });
+      return;
+    }
+
+    if (assignedDate && dueDate && dueDate < assignedDate) {
+      Toast.show({
+        type: "error",
+        text1: "Invalid Dates",
+        text2: "Due date cannot be earlier than assigned date.",
       });
       return;
     }
@@ -1025,17 +1049,32 @@ export default function AddAssignmentScreen() {
       {/* Date Pickers */}
       {showAssignedDatePicker && (
         <DateTimePicker
-          value={assignedDate ? new Date(assignedDate) : new Date()}
+          value={
+            assignedDate
+              ? (() => {
+                  const parts = assignedDate.split("-");
+                  if (parts.length === 3) {
+                    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  }
+                  const d = new Date(assignedDate);
+                  return isNaN(d.getTime()) ? new Date() : d;
+                })()
+              : new Date()
+          }
           mode="date"
           display="default"
-          minimumDate={new Date()}
+          minimumDate={params.assignmentId ? undefined : new Date(new Date().setHours(0, 0, 0, 0))}
           onChange={(event: any, date?: Date) => {
             setShowAssignedDatePicker(false);
-            if (date) {
+            if (date && event?.type !== "dismissed") {
               const y = date.getFullYear();
               const m = String(date.getMonth() + 1).padStart(2, "0");
               const d = String(date.getDate()).padStart(2, "0");
-              setAssignedDate(`${y}-${m}-${d}`);
+              const newDate = `${y}-${m}-${d}`;
+              setAssignedDate(newDate);
+              if (dueDate && dueDate < newDate) {
+                setDueDate(newDate);
+              }
             }
           }}
         />
@@ -1043,13 +1082,34 @@ export default function AddAssignmentScreen() {
 
       {showDueDatePicker && (
         <DateTimePicker
-          value={dueDate ? new Date(dueDate) : new Date()}
+          value={
+            dueDate
+              ? (() => {
+                  const parts = dueDate.split("-");
+                  if (parts.length === 3) {
+                    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  }
+                  const d = new Date(dueDate);
+                  return isNaN(d.getTime()) ? new Date() : d;
+                })()
+              : new Date()
+          }
           mode="date"
-          minimumDate={assignedDate ? new Date(assignedDate) : undefined}
+          minimumDate={
+            assignedDate
+              ? (() => {
+                  const parts = assignedDate.split("-");
+                  if (parts.length === 3) {
+                    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  }
+                  return undefined;
+                })()
+              : undefined
+          }
           display="default"
           onChange={(event: any, date?: Date) => {
             setShowDueDatePicker(false);
-            if (date) {
+            if (date && event?.type !== "dismissed") {
               const y = date.getFullYear();
               const m = String(date.getMonth() + 1).padStart(2, "0");
               const d = String(date.getDate()).padStart(2, "0");

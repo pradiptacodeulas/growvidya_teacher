@@ -101,13 +101,18 @@ export default function EventScreen() {
   const cleanDetailsString = (str: string) => {
     if (!str) return '';
     return str
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
       .replace(/<[^>]*>/g, '') // Remove HTML tags
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
       .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&nbsp;/g, ' ')
+      .replace(/\\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   };
 

@@ -12,6 +12,25 @@ export const getItemId = (item: any): any => {
     return !isNaN(num) ? num : item;
   }
 
+  // 1. Explicit sort order / sequence takes highest priority
+  const sortOrderCandidates = [
+    'sort_order',
+    'sortOrder',
+    'order',
+    'sequence',
+    'position',
+    'priority',
+  ];
+
+  for (const candidate of sortOrderCandidates) {
+    if (item[candidate] !== undefined && item[candidate] !== null && item[candidate] !== '') {
+      const val = item[candidate];
+      const num = Number(val);
+      return !isNaN(num) ? num : val;
+    }
+  }
+
+  // 2. Primary ID and foreign key candidates
   const idCandidates = [
     'id',
     '_id',
@@ -30,7 +49,6 @@ export const getItemId = (item: any): any => {
     'room_id',
     'state_id',
     'city_id',
-    'sort_order',
   ];
 
   for (const candidate of idCandidates) {
@@ -41,7 +59,7 @@ export const getItemId = (item: any): any => {
     }
   }
 
-  return item.name || item.title || null;
+  return item.name || item.title || item.class_name || item.section_name || null;
 };
 
 export const sortDropdownById = (list: any[], direction: 'asc' | 'desc' = 'asc'): any[] => {
@@ -60,7 +78,14 @@ export const sortDropdownById = (list: any[], direction: 'asc' | 'desc' = 'asc')
     const idA = getItemId(a);
     const idB = getItemId(b);
 
-    if (idA === idB) return 0;
+    if (idA === idB) {
+      const nameA = a?.name || a?.title || a?.class_name || a?.section_name || '';
+      const nameB = b?.name || b?.title || b?.class_name || b?.section_name || '';
+      return String(nameA).localeCompare(String(nameB), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    }
     if (idA === null || idA === undefined) return isAsc ? 1 : -1;
     if (idB === null || idB === undefined) return isAsc ? -1 : 1;
 

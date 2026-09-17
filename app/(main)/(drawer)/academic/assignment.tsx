@@ -107,8 +107,8 @@ export default function AssignmentScreen() {
               ...shift,
               id: String(shift.id),
               shift_name: shift.shift_name || shift.name || "Shift",
-              start_time: shift.start_time || "08:00:00",
-              end_time: shift.end_time || "14:00:00",
+              start_time: shift.start_time || "",
+              end_time: shift.end_time || "",
               status: "1",
               class: shiftClasses,
             };

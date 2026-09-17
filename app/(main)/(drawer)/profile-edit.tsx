@@ -247,7 +247,7 @@ export default function ProfileEditScreen() {
         phone: user?.phone || user?.primary_contact_number || (user as any)?.mobile || "",
         father_name: user?.father_name || "",
         mother_name: user?.mother_name || "",
-        employee_id: user?.teacherId || user?.teacher_id || (user?.id ? `TCH-${user.id}` : ""),
+        employee_id: user?.teacherId || user?.teacher_id || "",
         qualification: user?.qualification || "",
         date_of_joining: (user?.date_of_joining || user?.dateOfJoining || user?.joining_date || "")?.split(" ")[0]?.split("T")[0] || "",
         work_experience: user?.work_experience || user?.workExperience || "",
@@ -742,8 +742,20 @@ export default function ProfileEditScreen() {
             {showDatePicker && (
               <DateTimePicker
                 value={
-                  formData.date_of_birth && !isNaN(new Date(formData.date_of_birth).getTime())
-                    ? new Date(formData.date_of_birth)
+                  formData.date_of_birth
+                    ? (() => {
+                        const parts = formData.date_of_birth.split('-');
+                        if (parts.length === 3) {
+                          const y = parseInt(parts[0], 10);
+                          const m = parseInt(parts[1], 10) - 1;
+                          const d = parseInt(parts[2], 10);
+                          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                            return new Date(y, m, d);
+                          }
+                        }
+                        const parsed = new Date(formData.date_of_birth);
+                        return isNaN(parsed.getTime()) ? new Date(2000, 0, 1) : parsed;
+                      })()
                     : new Date(2000, 0, 1)
                 }
                 mode="date"

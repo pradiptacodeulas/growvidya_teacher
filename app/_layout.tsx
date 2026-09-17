@@ -1,11 +1,11 @@
 import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { store } from "@/redux/store";
-import { loginSuccess } from "@/redux/features/auth/slice";
+import { loginSuccess, logout } from "@/redux/features/auth/slice";
 import { setTheme } from "@/redux/features/ui/slice";
-import { setAuthToken } from "@/services/apiClient";
+import { setAuthToken, setOnUnauthorizedCallback } from "@/services/apiClient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
@@ -38,6 +38,34 @@ const toastConfig: ToastConfig = {
 
 function RootAppContent() {
   const { colors } = useAppTheme();
+
+  useEffect(() => {
+    setOnUnauthorizedCallback(() => {
+      try {
+        store.dispatch(logout());
+      } catch (err) {
+        console.warn('Failed to dispatch logout on 401:', err);
+      }
+      try {
+        router.replace('/(auth)/login');
+      } catch (err) {
+        console.warn('Failed to redirect to login on 401:', err);
+      }
+      try {
+        Toast.show({
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'Please log in again to continue.',
+        });
+      } catch (err) {
+        console.warn('Failed to show session expired toast on 401:', err);
+      }
+    });
+
+    return () => {
+      setOnUnauthorizedCallback(null);
+    };
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

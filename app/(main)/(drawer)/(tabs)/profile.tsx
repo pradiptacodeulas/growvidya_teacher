@@ -97,27 +97,22 @@ export default function ProfileScreen() {
   };
 
   const getBloodGroupText = (bg: any, bgName?: string) => {
-    if (bgName && isNaN(Number(bgName))) return bgName;
-    const map: Record<string, string> = {
-      '1': 'A+',
-      '2': 'A-',
-      '3': 'B+',
-      '4': 'B-',
-      '5': 'O+',
-      '6': 'O-',
-      '7': 'AB+',
-      '8': 'AB-',
-    };
-    if (bg && map[String(bg)]) return map[String(bg)];
+    if (bgName && typeof bgName === 'string' && isNaN(Number(bgName)) && bgName.trim()) {
+      return bgName.trim();
+    }
+    if (typeof bg === 'string' && isNaN(Number(bg)) && bg.trim()) {
+      return bg.trim();
+    }
     return formatValue(bgName || bg);
   };
 
   const getMaritalStatusText = (status: any, statusName?: string) => {
-    if (statusName && isNaN(Number(statusName))) return statusName;
-    const s = String(status).trim();
-    if (s === '1') return 'Single';
-    if (s === '2') return 'Married';
-    if (s === '3') return 'Divorced';
+    if (statusName && typeof statusName === 'string' && isNaN(Number(statusName)) && statusName.trim()) {
+      return statusName.trim();
+    }
+    if (typeof status === 'string' && isNaN(Number(status)) && status.trim()) {
+      return status.trim();
+    }
     return formatValue(statusName || status);
   };
 

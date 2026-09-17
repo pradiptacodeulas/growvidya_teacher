@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/constants/theme';
 
 interface ProfileCardProps {
@@ -18,6 +19,7 @@ export default function ProfileCard({
   onEditPress 
 }: ProfileCardProps) {
   const { colors, isDark } = useAppTheme();
+  const [imageError, setImageError] = useState(false);
 
   return (
     <View style={styles.cardWrapper}>
@@ -27,11 +29,18 @@ export default function ProfileCard({
             <View style={styles.profileSection}>
               {/* Avatar XXL Rounded */}
               <View style={[styles.avatarContainer, { borderColor: isDark ? colors.primary : '#fff' }]}>
-                <Image 
-                  source={{ uri: avatarUrl }} 
-                  style={styles.avatar}
-                  resizeMode="cover"
-                />
+                {imageError ? (
+                  <View style={[styles.avatar, styles.fallbackAvatar]}>
+                    <Ionicons name="person" size={36} color="#fff" />
+                  </View>
+                ) : (
+                  <Image 
+                    source={{ uri: avatarUrl }} 
+                    style={styles.avatar}
+                    resizeMode="cover"
+                    onError={() => setImageError(true)}
+                  />
+                )}
               </View>
 
               <View style={styles.infoTextContainer}>
@@ -104,6 +113,11 @@ const styles = StyleSheet.create({
   avatar: {
     width: '100%',
     height: '100%',
+  },
+  fallbackAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   infoTextContainer: {
     flex: 1,

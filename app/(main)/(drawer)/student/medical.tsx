@@ -173,6 +173,9 @@ export default function StudentMedicalScreen() {
           ) : (
             medicalData.map((record) => {
               const condProps = getMedicalConditionProps(record.medical_condition);
+              const isRecordActive = String(record.status) === '1' || Number(record.status) === 1 || String(record.status).toLowerCase() === 'active';
+              const isInformed = String(record.is_informed) === '1' || Number(record.is_informed) === 1 || String(record.is_informed).toLowerCase() === 'yes';
+
               return (
                 <View key={record.id} style={styles.historyCard}>
                   <View style={styles.cardHeader}>
@@ -186,13 +189,13 @@ export default function StudentMedicalScreen() {
                     </View>
                     <View style={[
                       styles.statusBadge,
-                      { backgroundColor: record.status === '1' ? '#ecfdf5' : '#fef2f2' }
+                      { backgroundColor: isRecordActive ? '#ecfdf5' : '#fef2f2' }
                     ]}>
                       <Text style={[
                         styles.statusText,
-                        { color: record.status === '1' ? '#059669' : '#dc2626' }
+                        { color: isRecordActive ? '#059669' : '#dc2626' }
                       ]}>
-                        {record.status === '1' ? 'Active' : 'Inactive'}
+                        {isRecordActive ? 'Active' : 'Inactive'}
                       </Text>
                     </View>
                   </View>
@@ -206,16 +209,16 @@ export default function StudentMedicalScreen() {
                     <Text style={styles.label}>Parents Informed</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Ionicons
-                        name={record.is_informed === '1' ? "checkmark-circle" : "close-circle"}
+                        name={isInformed ? "checkmark-circle" : "close-circle"}
                         size={16}
-                        color={record.is_informed === '1' ? "#10b981" : "#ef4444"}
+                        color={isInformed ? "#10b981" : "#ef4444"}
                         style={{ marginRight: 4 }}
                       />
                       <Text style={[
                         styles.value,
-                        { color: record.is_informed === '1' ? "#10b981" : "#ef4444" }
+                        { color: isInformed ? "#10b981" : "#ef4444" }
                       ]}>
-                        {record.is_informed === '1' ? 'Yes' : 'No'}
+                        {isInformed ? 'Yes' : 'No'}
                       </Text>
                     </View>
                   </View>

@@ -209,7 +209,7 @@ export default function ApplyLeaveScreen() {
 
   const handleStartDateChange = (event: any, selectedDate?: Date) => {
     setShowStartDatePicker(false);
-    if (selectedDate) {
+    if (selectedDate && event?.type !== 'dismissed') {
       setStartDate(selectedDate);
       if (endDate < selectedDate) {
         setEndDate(selectedDate);
@@ -219,7 +219,7 @@ export default function ApplyLeaveScreen() {
 
   const handleEndDateChange = (event: any, selectedDate?: Date) => {
     setShowEndDatePicker(false);
-    if (selectedDate) {
+    if (selectedDate && event?.type !== 'dismissed') {
       if (selectedDate < startDate) {
         Alert.alert('Validation Error', 'End Date cannot be before Start Date');
       } else {
@@ -316,7 +316,6 @@ export default function ApplyLeaveScreen() {
               mode="date"
               display="default"
               onChange={handleStartDateChange}
-              minimumDate={new Date()}
             />
           )}
 

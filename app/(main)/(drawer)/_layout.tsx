@@ -209,8 +209,10 @@ function CustomDrawerContent(props: any) {
           />
         </View>
         <View style={styles.schoolInfo}>
-          <Text style={[styles.schoolName, { color: colors.text }]}>{user ? `${user.first_name} ${user.last_name}` : 'Growvidya Academy'}</Text>
-          <Text style={[styles.schoolTagline, { color: colors.textMuted }]}>{user?.school_name || 'Education for Excellence'}</Text>
+          <Text style={[styles.schoolName, { color: colors.text }]}>{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : ''}</Text>
+          {!!user?.school_name && (
+            <Text style={[styles.schoolTagline, { color: colors.textMuted }]}>{user.school_name}</Text>
+          )}
         </View>
       </View>
 

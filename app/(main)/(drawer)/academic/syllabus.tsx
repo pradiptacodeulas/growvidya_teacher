@@ -440,9 +440,7 @@ export default function SyllabusScreen() {
                     { color: getStatusColor(item.status) },
                   ]}
                 >
-                  {getStatusLabel(item.status) === "Completed"
-                    ? "Done"
-                    : getStatusLabel(item.status)}
+                  {getStatusLabel(item.status)}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -915,7 +913,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   colStatus: {
-    width: 90,
+    width: 95,
     alignItems: "flex-end",
   },
   colIndent: {
@@ -945,7 +943,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    minWidth: 80,
+    minWidth: 85,
     justifyContent: "center",
   },
   statusText: {

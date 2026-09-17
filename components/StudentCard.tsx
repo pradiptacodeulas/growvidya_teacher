@@ -38,8 +38,10 @@ export default function StudentCard({
 
   const name = `${student.first_name || ''} ${student.last_name || ''}`.trim();
   const classText = `${student.class_name || `Class ${student.class || ''}`}, ${student.section_name || `Sec ${student.section || ''}`}`;
-  const statusLabel = student.status === '1' ? 'Active' : 'Inactive';
+  const isActive = String(student.status) === '1' || Number(student.status) === 1 || String(student.status).toLowerCase() === 'active';
+  const statusLabel = isActive ? 'Active' : 'Inactive';
   const avatarSource = { uri: getAvatarUrl(student.picture, student.gender) };
+  const [imageError, setImageError] = React.useState(false);
   const joinedDate = formatDate(student.admission_date);
 
   return (
@@ -77,10 +79,17 @@ export default function StudentCard({
       {/* Card Body - Profile Area */}
       <View style={styles.body}>
         <View style={styles.profileSection}>
-          <Image 
-            source={avatarSource} 
-            style={styles.avatar}
-          />
+          {imageError ? (
+            <View style={[styles.avatar, styles.fallbackAvatar, { backgroundColor: colors.surfaceSubtle }]}>
+              <Ionicons name="person" size={24} color={colors.textMuted} />
+            </View>
+          ) : (
+            <Image 
+              source={avatarSource} 
+              style={styles.avatar}
+              onError={() => setImageError(true)}
+            />
+          )}
           <View style={styles.profileInfo}>
             <Text style={[styles.studentName, { color: colors.text }]}>{name}</Text>
             <Text style={[styles.classText, { color: colors.textMuted }]}>{classText}</Text>
@@ -169,6 +178,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: '#e2e8f0',
     marginRight: 12,
+  },
+  fallbackAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileInfo: {
     flex: 1,

@@ -97,9 +97,11 @@ export default function StudentDetailsScreen() {
     );
   }
 
+  const [imageError, setImageError] = useState(false);
   const name = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim();
   const avatarSource = { uri: getAvatarUrl(student.picture, student.gender) };
-  const statusLabel = String(student.status) === '1' ? 'Active' : 'Inactive';
+  const isActive = String(student.status) === '1' || Number(student.status) === 1 || String(student.status).toLowerCase() === 'active';
+  const statusLabel = isActive ? 'Active' : 'Inactive';
   const displayClass = student.class_name || student.class || 'N/A';
   const displayRoll = student.roll_number || 'N/A';
   const gender = student.gender_name || (student.gender === 2 || student.gender === '2' ? 'Female' : 'Male');
@@ -155,13 +157,23 @@ export default function StudentDetailsScreen() {
         {/* Profile Details & Basic Information Combined */}
         <View style={[styles.infoCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={styles.profileRow}>
-            <Image source={avatarSource} style={styles.avatar} />
+            {imageError ? (
+              <View style={[styles.avatar, styles.fallbackAvatar, { backgroundColor: colors.surfaceSubtle }]}>
+                <Ionicons name="person" size={32} color={colors.textMuted} />
+              </View>
+            ) : (
+              <Image 
+                source={avatarSource} 
+                style={styles.avatar} 
+                onError={() => setImageError(true)}
+              />
+            )}
             <View style={styles.profileDetails}>
               <View style={styles.nameRow}>
                 <Text style={[styles.studentName, { color: colors.text }]} numberOfLines={1}>{name}</Text>
-                <View style={[styles.statusBadge, String(student.status) === '1' ? styles.statusActive : styles.statusInactive]}>
-                  <View style={[styles.statusDot, { backgroundColor: String(student.status) === '1' ? '#28a745' : '#dc3545' }]} />
-                  <Text style={[styles.statusText, String(student.status) === '1' ? styles.textActive : styles.textInactive]}>
+                <View style={[styles.statusBadge, isActive ? styles.statusActive : styles.statusInactive]}>
+                  <View style={[styles.statusDot, { backgroundColor: isActive ? '#28a745' : '#dc3545' }]} />
+                  <Text style={[styles.statusText, isActive ? styles.textActive : styles.textInactive]}>
                     {statusLabel}
                   </Text>
                 </View>
@@ -325,6 +337,10 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: 2,
     borderColor: '#f0f2f5',
+  },
+  fallbackAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileDetails: {
     flex: 1,

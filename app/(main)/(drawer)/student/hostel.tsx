@@ -84,7 +84,12 @@ export default function StudentHostelScreen() {
     );
   }
 
-  const hasHostel = hostelData && hostelData.status === '1';
+  const hasHostel = Boolean(
+    hostelData &&
+      (String(hostelData.status) === '1' ||
+        Number(hostelData.status) === 1 ||
+        String(hostelData.status).toLowerCase() === 'active')
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

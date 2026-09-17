@@ -100,6 +100,25 @@ export default function NoticeScreen() {
     }, [fetchNotices])
   );
 
+  // Clean message string (decodes HTML entities and strips any tags)
+  const cleanMessageString = (str?: string) => {
+    if (!str) return '';
+    return str
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
   // Format date helper
   const formatDateString = (dateStr: string) => {
     if (!dateStr) return '';
@@ -116,7 +135,7 @@ export default function NoticeScreen() {
   // Filter notices based on search query
   const filteredNotices = notices.filter(item => 
     item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    item.message?.toLowerCase().includes(searchQuery.toLowerCase())
+    cleanMessageString(item.message).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const renderBackdrop = useCallback(
@@ -155,7 +174,7 @@ export default function NoticeScreen() {
         </View>
 
         <Text style={[styles.noticePreview, { color: colors.textSecondary }]} numberOfLines={3}>
-          {item.message?.replace(/\\n/g, '\n')}
+          {cleanMessageString(item.message)}
         </Text>
 
         <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
@@ -296,7 +315,7 @@ export default function NoticeScreen() {
             </View>
 
             <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
-              {selectedNotice?.message?.replace(/\\n/g, '\n')}
+              {cleanMessageString(selectedNotice?.message)}
             </Text>
           </BottomSheetScrollView>
         </View>

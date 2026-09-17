@@ -273,9 +273,23 @@ export default function ExamScheduleScreen() {
           [];
 
         if (Array.isArray(scheduleList)) {
+          const parseScheduleTimestamp = (d: string) => {
+            if (!d) return 0;
+            const clean = d.trim().replace(' ', 'T');
+            const parsed = new Date(clean).getTime();
+            if (!isNaN(parsed)) return parsed;
+            const parts = d.split('-');
+            if (parts.length === 3) {
+              return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+            }
+            return 0;
+          };
+
           // Sort chronologically by date and start_time
           const sorted = [...scheduleList].sort((a, b) => {
-            const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+            const timeA = parseScheduleTimestamp(a.date);
+            const timeB = parseScheduleTimestamp(b.date);
+            const dateDiff = timeA - timeB;
             if (dateDiff !== 0) return dateDiff;
             return String(a.start_time || "").localeCompare(String(b.start_time || ""));
           });
