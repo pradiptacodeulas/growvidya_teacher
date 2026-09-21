@@ -100,10 +100,12 @@ export default function GlobalMessageListener() {
               onPress: () => {
                 Toast.hide();
                 router.push({
-                  pathname: '/(main)/(drawer)/(tabs)/message',
+                  pathname: '/chat/[id]',
                   params: {
-                    contactId: String(msg.sender),
+                    id: String(msg.sender),
                     role: String(msg.sender_role || '').toLowerCase(),
+                    name: senderName,
+                    picture: rawPic || '',
                   },
                 });
               },

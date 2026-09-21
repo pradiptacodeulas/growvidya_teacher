@@ -132,6 +132,29 @@ export default function TakeAttendanceScreen() {
   const classBottomSheetRef = useRef<BottomSheetModal>(null);
   const sectionBottomSheetRef = useRef<BottomSheetModal>(null);
 
+  // Track initial mount and pending section selection from params
+  const targetSectionRef = useRef<string | undefined>(params.sectionId);
+  const prevClassRef = useRef<string>(params.classId || "");
+
+  // Sync incoming route params to state
+  useEffect(() => {
+    if (params.classId && params.classId !== selectedClass) {
+      setSelectedClass(params.classId);
+    }
+    if (params.sectionId) {
+      targetSectionRef.current = params.sectionId;
+      if (params.sectionId !== selectedSection) {
+        setSelectedSection(params.sectionId);
+      }
+    }
+    if (params.yearId && params.yearId !== selectedYear) {
+      setSelectedYear(params.yearId);
+    }
+    if (params.date && params.date !== selectedDate) {
+      setSelectedDate(params.date);
+    }
+  }, [params.classId, params.sectionId, params.yearId, params.date]);
+
   // Load classes if empty
   useEffect(() => {
     if (classes.length === 0) {
@@ -156,27 +179,46 @@ export default function TakeAttendanceScreen() {
   useEffect(() => {
     if (selectedClass) {
       dispatch(fetchSections(selectedClass));
-      setSelectedSection(""); // Reset section selection
+      // Only reset section if user explicitly switched to a different class
+      // and it's not the class passed with a target section in route params
+      if (prevClassRef.current && prevClassRef.current !== selectedClass) {
+        if (targetSectionRef.current && params.classId === selectedClass) {
+          setSelectedSection(targetSectionRef.current);
+        } else {
+          setSelectedSection("");
+          targetSectionRef.current = undefined;
+        }
+      }
+      prevClassRef.current = selectedClass;
       setAttendanceData([]);
       setEditedAttendance({});
       setEditedNotes({});
       setHasMore(true);
       setLocalSearch("");
     }
-  }, [selectedClass, dispatch]);
+  }, [selectedClass, dispatch, params.classId]);
 
   // Set default section when sections load
   useEffect(() => {
-    if (sections.length > 0 && !selectedSection) {
-      const activeSections = sections.filter(
-        (s) => s.status === undefined || String(s.status) === "1",
+    if (sections.length > 0) {
+      const wantedSection = selectedSection || targetSectionRef.current || params.sectionId;
+      const matchingSection = sections.find(
+        (s) => String(s.id) === String(wantedSection)
       );
-      const defaultSection = activeSections[0] || sections[0];
-      if (defaultSection) {
-        setSelectedSection(String(defaultSection.id));
+      if (matchingSection) {
+        setSelectedSection(String(matchingSection.id));
+        targetSectionRef.current = undefined;
+      } else if (!selectedSection) {
+        const activeSections = sections.filter(
+          (s) => s.status === undefined || String(s.status) === "1",
+        );
+        const defaultSection = activeSections[0] || sections[0];
+        if (defaultSection) {
+          setSelectedSection(String(defaultSection.id));
+        }
       }
     }
-  }, [sections, selectedSection]);
+  }, [sections, selectedSection, params.sectionId]);
 
   // Fetch Academic Years from API
   const fetchYears = useCallback(async () => {
@@ -190,18 +232,22 @@ export default function TakeAttendanceScreen() {
         : [];
       if (data.length > 0) {
         setAcademicYears(data);
-        const currentYear =
-          data.find((y: any) => String(y.is_current) === "1") || data[0];
-        if (currentYear) {
-          setSelectedYear(String(currentYear.id));
-        }
+        setSelectedYear((prevYear) => {
+          const requestedYear = params.yearId || prevYear;
+          if (requestedYear && data.some((y: any) => String(y.id) === String(requestedYear))) {
+            return String(requestedYear);
+          }
+          const currentYear =
+            data.find((y: any) => String(y.is_current) === "1") || data[0];
+          return currentYear ? String(currentYear.id) : prevYear;
+        });
       }
     } catch (e: any) {
       console.warn("fetchYears exception:", e?.message);
     } finally {
       setIsLoadingYears(false);
     }
-  }, []);
+  }, [params.yearId]);
 
   useEffect(() => {
     fetchYears();
@@ -351,6 +397,23 @@ export default function TakeAttendanceScreen() {
       Alert.alert(
         "Success",
         response.data?.message || "Attendance saved successfully.",
+        [
+          {
+            text: "View Records",
+            onPress: () => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(main)/(drawer)/attendance");
+              }
+            },
+          },
+          {
+            text: "Keep Editing",
+            onPress: () => fetchAttendance(true),
+            style: "cancel",
+          },
+        ]
       );
       fetchAttendance(true);
     } catch (e: any) {
@@ -596,7 +659,13 @@ export default function TakeAttendanceScreen() {
     >
       <InternalHeader
         title="Take Attendance"
-        onBack={() => router.replace("/(main)/(drawer)/attendance")}
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(main)/(drawer)/attendance");
+          }
+        }}
       />
 
       {/* Filter Options Selector Header Card */}

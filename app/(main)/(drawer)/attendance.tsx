@@ -381,6 +381,19 @@ export default function AttendanceScreen() {
     );
   };
 
+  const navigateToTakeAttendance = useCallback(() => {
+    const navParams: Record<string, string> = {};
+    if (selectedClass) navParams.classId = String(selectedClass);
+    if (selectedSection) navParams.sectionId = String(selectedSection);
+    if (selectedYear) navParams.yearId = String(selectedYear);
+    if (selectedDate) navParams.date = String(selectedDate);
+
+    router.push({
+      pathname: '/(main)/(drawer)/take-attendance',
+      params: navParams,
+    });
+  }, [selectedClass, selectedSection, selectedYear, selectedDate, router]);
+
   const renderEmptyState = () => {
     if (loadingAttendance) return null;
     if (errorAttendance) {
@@ -391,7 +404,10 @@ export default function AttendanceScreen() {
           </View>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Error Loading Records</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>{errorAttendance}</Text>
-          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => fetchAttendance()}>
+          <TouchableOpacity 
+            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+            onPress={() => fetchAttendance()}
+          >
             <Text style={styles.retryBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -414,33 +430,33 @@ export default function AttendanceScreen() {
             ? 'Please choose class, section, and date above to view student attendance records.'
             : `Attendance has not been recorded for Class ${className} - Section ${sectionName} on ${formatDateDisplay(selectedDate)}.`}
         </Text>
-        {selectedClass && selectedSection ? (
-          <TouchableOpacity
-            style={[styles.markAttendanceBtn, { backgroundColor: colors.primary, marginTop: 16 }]}
-            onPress={() =>
-              router.push({
-                pathname: '/(main)/(drawer)/take-attendance',
-                params: {
-                  classId: selectedClass,
-                  sectionId: selectedSection,
-                  yearId: selectedYear,
-                  date: selectedDate,
-                },
-              })
-            }
-            activeOpacity={0.8}
-          >
-            <Ionicons name="checkbox-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.markAttendanceBtnText}>Take Attendance</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity
+          style={[styles.markAttendanceBtn, { backgroundColor: colors.primary, marginTop: 16, paddingHorizontal: 24 }]}
+          onPress={navigateToTakeAttendance}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="checkbox-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+          <Text style={styles.markAttendanceBtnText}>Take Attendance</Text>
+        </TouchableOpacity>
       </View>
     );
   };
 //Now we have to seperate 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <InternalHeader title="Student Attendance" />
+      <InternalHeader 
+        title="Student Attendance" 
+        rightAction={
+          <TouchableOpacity
+            style={[styles.headerTakeBtn, { backgroundColor: colors.primary }]}
+            onPress={navigateToTakeAttendance}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkbox-outline" size={16} color="#fff" />
+            <Text style={styles.headerTakeBtnText}>Take</Text>
+          </TouchableOpacity>
+        }
+      />
       {/* Filter Options Selector Header Card */}
       <View style={[styles.filterCard, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
         {/* Row 1: Academic Year and Date */}
@@ -556,14 +572,14 @@ export default function AttendanceScreen() {
                   </View>
                 </View>
 
-                {/* Mark Attendance Button */}
+                {/* Take Attendance Button */}
                 <TouchableOpacity
                   style={[styles.markAttendanceBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => router.push('/(main)/(drawer)/take-attendance')}
+                  onPress={navigateToTakeAttendance}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="checkbox-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.markAttendanceBtnText}>Mark Attendance</Text>
+                  <Text style={styles.markAttendanceBtnText}>Take Attendance</Text>
                 </TouchableOpacity>
 
                 {/* Local search bar */}
@@ -955,5 +971,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  headerTakeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  headerTakeBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
