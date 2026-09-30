@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, useColorScheme, Image } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
+import { useAppTheme } from '@/constants/theme';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
 }
 
 export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSplashScreenProps) {
-  // Theme depends strictly on system theme (NOT app theme)
-  const systemColorScheme = useColorScheme();
-  const isDark = systemColorScheme === 'dark';
+  const { isDark } = useAppTheme();
 
   useEffect(() => {
     // Hold static logo on screen for 2 seconds before advancing

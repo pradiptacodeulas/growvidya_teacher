@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -20,6 +20,7 @@ import { updateProfilePicture, fetchProfile } from '@/redux/features/auth/thunks
 import Toast from 'react-native-toast-message';
 import { useAppTheme } from '@/constants/theme';
 import { getAvatarUrl } from '@/services/apiClient';
+import { getAvatarInitials, isNonEmptyPicture } from '@/utils/avatar';
 
 export default function ProfileScreen() {
   const user = useAppSelector((state) => state.auth.user);
@@ -29,6 +30,11 @@ export default function ProfileScreen() {
   const { colors, isDark } = useAppTheme();
   const [isUploading, setIsUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.picture]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -357,10 +363,19 @@ export default function ProfileScreen() {
 
           <View style={styles.profileInfo}>
             <View style={styles.avatarWrapper}>
-              <Image
-                source={{ uri: getAvatarUrl(user.picture, user.gender) }}
-                style={styles.avatar}
-              />
+              {isNonEmptyPicture(user.picture) && !avatarError ? (
+                <Image
+                  source={{ uri: getAvatarUrl(user.picture, user.gender) }}
+                  style={styles.avatar}
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <View style={[styles.avatar, styles.initialsAvatar, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.initialsText}>
+                    {getAvatarInitials(fullName, user.first_name, user.last_name)}
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[styles.editAvatarButton, { backgroundColor: colors.primary }]}
                 onPress={pickImage}
@@ -558,6 +573,16 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     borderWidth: 3,
     borderColor: '#fff',
+  },
+  initialsAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   editAvatarButton: {
     position: 'absolute',

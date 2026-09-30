@@ -439,14 +439,16 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
     }
   }
 
+  const isFormData = options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
 
   if (token && !headers.Authorization && !headers.authorization) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   }
 
   const response = await fetch(cleanEndpoint, {
@@ -459,12 +461,15 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
   try {
     json = JSON.parse(text);
   } catch {
-    json = { status: response.ok, message: text };
+    json = { status: response.ok, success: response.ok, message: text };
   }
 
   if (json && typeof json === 'object') {
     if (json.status === undefined && json.success !== undefined) {
       json.status = json.success;
+    }
+    if (json.success === undefined) {
+      json.success = response.ok;
     }
   }
 
@@ -475,8 +480,11 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
   return {
     ok: response.ok,
     status: response.status,
+    success: Boolean(json?.success ?? response.ok),
+    message: json?.message,
+    data: json?.data !== undefined ? json.data : json,
     json: async () => json,
-    data: json,
+    ...json,
   };
 };
 

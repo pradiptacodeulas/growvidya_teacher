@@ -1,4 +1,5 @@
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { setTheme, UIState } from '@/redux/features/ui/slice';
 import { Palette } from './Colors';
@@ -84,6 +85,9 @@ export function useAppTheme() {
 
   const changeTheme = (mode: ThemeMode) => {
     dispatch(setTheme(mode));
+    AsyncStorage.setItem('app_theme', mode).catch((e) =>
+      console.warn('Failed to save theme setting to AsyncStorage:', e)
+    );
   };
 
   return {

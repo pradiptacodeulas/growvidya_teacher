@@ -13,7 +13,7 @@ import { View } from "react-native";
 import "react-native-gesture-handler";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MenuProvider } from "react-native-popup-menu";
-import Toast, { ToastConfig } from "react-native-toast-message";
+import Toast, { ToastConfig, BaseToast, InfoToast } from "react-native-toast-message";
 import { Provider } from "react-redux";
 import { useAppTheme } from "@/constants/theme";
 import GlobalMessageListener from "@/components/GlobalMessageListener";
@@ -23,6 +23,54 @@ import InAppChatNotification from "@/components/InAppChatNotification";
 SplashScreen.preventAutoHideAsync();
 
 const toastConfig: ToastConfig = {
+  success: (props) => (
+    <BaseToast
+      {...props}
+      style={{
+        borderLeftColor: '#10B981',
+        borderRadius: 14,
+        height: 'auto',
+        minHeight: 56,
+        paddingVertical: 8,
+        backgroundColor: '#FFFFFF',
+      }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}
+      text2Style={{ fontSize: 12.5, color: '#4B5563' }}
+    />
+  ),
+  error: (props) => (
+    <BaseToast
+      {...props}
+      style={{
+        borderLeftColor: '#EF4444',
+        borderRadius: 14,
+        height: 'auto',
+        minHeight: 56,
+        paddingVertical: 8,
+        backgroundColor: '#FFFFFF',
+      }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}
+      text2Style={{ fontSize: 12.5, color: '#4B5563' }}
+    />
+  ),
+  info: (props) => (
+    <InfoToast
+      {...props}
+      style={{
+        borderLeftColor: '#3B82F6',
+        borderRadius: 14,
+        height: 'auto',
+        minHeight: 56,
+        paddingVertical: 8,
+        backgroundColor: '#FFFFFF',
+      }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}
+      text2Style={{ fontSize: 12.5, color: '#4B5563' }}
+    />
+  ),
   chat_message: ({ text1, text2, props, onPress }) => (
     <InAppChatNotification
       senderName={text1}
@@ -107,9 +155,12 @@ export default function RootLayout() {
           }
         }
 
-        const savedTheme = await AsyncStorage.getItem('app_theme');
+        const savedTheme = (await AsyncStorage.getItem('app_theme')) || (await AsyncStorage.getItem('@app_theme_mode'));
         if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'automatic') {
-          store.dispatch(setTheme(savedTheme));
+          store.dispatch(setTheme(savedTheme as any));
+        } else {
+          store.dispatch(setTheme('light'));
+          await AsyncStorage.setItem('app_theme', 'light');
         }
         await new Promise((resolve) => setTimeout(resolve, 1000));
       } catch (e) {

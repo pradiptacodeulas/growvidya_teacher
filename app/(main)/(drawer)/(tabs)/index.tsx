@@ -41,9 +41,13 @@ export default function HomeScreen() {
   }
 
   const teacherData = {
-    name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Teacher',
-    id: String(user.teacherId || user.teacher_id || user.id || ''),
-    className: user.className || user.class_name || 'Teacher',
+    name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.name || 'Teacher',
+    firstName: user.first_name || user.firstName || '',
+    lastName: user.last_name || user.lastName || '',
+    id: String(user.teacherId || user.teacher_id || user.national_id || user.id || ''),
+    className: user.className || user.class_name || '',
+    roleName: user.roleName || user.role_name || '',
+    subjectName: user.subjectName || user.subject_name || '',
     avatarUrl: getAvatarUrl(user.picture, user.gender),
   };
 
@@ -88,8 +92,12 @@ export default function HomeScreen() {
 
         <ProfileCard 
           name={teacherData.name}
+          firstName={teacherData.firstName}
+          lastName={teacherData.lastName}
           id={teacherData.id}
           className={teacherData.className}
+          roleName={teacherData.roleName}
+          subjectName={teacherData.subjectName}
           avatarUrl={teacherData.avatarUrl}
           onEditPress={() => router.push('/(main)/(drawer)/profile-edit')}
         />

@@ -1,13 +1,23 @@
+import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '@/components/AppHeader';
 import { useAppTheme } from '@/constants/theme';
 import { Platform } from 'react-native';
-import { useAppSelector } from '@/redux/hooks';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks';
+import { fetchUnreadCount } from '@/redux/features/chat/slice';
 
 export default function TabLayout() {
   const { colors } = useAppTheme();
+  const dispatch = useAppDispatch();
   const unreadCount = useAppSelector((state) => state.chat?.unreadCount || 0);
+  const token = useAppSelector((state) => state.auth?.token);
+
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchUnreadCount());
+    }
+  }, [token, dispatch]);
 
   return (
     <Tabs 
@@ -16,6 +26,11 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.textMuted,
         headerShown: true,
         header: () => <AppHeader />,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+        },
         tabBarStyle: { 
           backgroundColor: colors.tabBarBg,
           borderTopColor: colors.tabBarBorder,
@@ -28,21 +43,39 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'home' : 'home-outline'} 
+              size={size || 24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="class"
         options={{
           title: 'Class',
-          tabBarIcon: ({ color }) => <Ionicons name="school" size={24} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'school' : 'school-outline'} 
+              size={size || 24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="message"
         options={{
           title: 'Message',
-          tabBarIcon: ({ color }) => <Ionicons name="mail" size={24} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'chatbubbles' : 'chatbubbles-outline'} 
+              size={size || 24} 
+              color={color} 
+            />
+          ),
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: '#EF4444',
@@ -60,7 +93,13 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'person-circle' : 'person-circle-outline'} 
+              size={size || 24} 
+              color={color} 
+            />
+          ),
         }}
       />
     </Tabs>

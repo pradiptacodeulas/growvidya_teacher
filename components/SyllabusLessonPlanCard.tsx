@@ -13,109 +13,156 @@ export default function SyllabusLessonPlanCard({ syllabus = [] }: SyllabusLesson
   const { colors, isDark } = useAppTheme();
   const router = useRouter();
 
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case '3': return '#4caf50';
-      case '2': return colors.primary;
-      default: return isDark ? '#ef5350' : '#f44336';
+      case '3':
+        return {
+          label: 'Completed',
+          icon: 'checkmark-circle' as const,
+          color: '#16a34a',
+          bg: isDark ? 'rgba(22, 163, 74, 0.15)' : '#f0fdf4',
+          progress: 100,
+        };
+      case '2':
+        return {
+          label: 'In Progress',
+          icon: 'time' as const,
+          color: colors.primary,
+          bg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+          progress: 50,
+        };
+      default:
+        return {
+          label: 'Pending',
+          icon: 'ellipse-outline' as const,
+          color: '#f59e0b',
+          bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb',
+          progress: 0,
+        };
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case '3': return 'Completed';
-      case '2': return 'Progress';
-      default: return 'Pending';
-    }
+  const formatClassName = (className?: string) => {
+    if (!className) return '';
+    const trimmed = String(className).trim();
+    if (trimmed.toLowerCase().startsWith('class')) return trimmed;
+    return `Class ${trimmed}`;
   };
 
-  const getProgress = (status: string) => {
-    switch (status) {
-      case '3': return 100;
-      case '2': return 50;
-      default: return 0;
-    }
-  };
-
-  const getThemeColor = (index: number) => {
-    const palette = ['#ff9800', '#00bcd4', '#4caf50', colors.primary, '#e91e63', '#9c27b0'];
-    return palette[index % palette.length];
+  const handleOpenSyllabus = () => {
+    router.push('/(main)/(drawer)/academic/syllabus' as any);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Syllabus / Lesson Plan</Text>
-        <TouchableOpacity onPress={() => router.push('/(main)/(drawer)/academic/syllabus')}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.title, { color: colors.text }]}>Syllabus / Lesson Plan</Text>
+          {syllabus.length > 0 && (
+            <View style={[styles.countBadge, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.countBadgeText, { color: colors.primary }]}>
+                {syllabus.length}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity onPress={handleOpenSyllabus} activeOpacity={0.7}>
           <Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {syllabus.length > 0 ? (
-          syllabus.map((item, index) => {
-            const themeColor = getThemeColor(index);
-            const progress = getProgress(item.status);
-            const className = item.class_name || '';
-            const displayClass = className.toLowerCase().startsWith('class')
-              ? className
-              : `Class ${className}`;
+      {/* Lesson Cards Carousel / Empty State */}
+      {syllabus.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {syllabus.map((item) => {
+            const statusConfig = getStatusConfig(item.status);
+            const displayClass = formatClassName(item.class_name);
+
             return (
-              <View key={item.id} style={[styles.lessonCard, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}>
-                <View style={[styles.classBadge, { backgroundColor: themeColor + '20' }]}>
-                  <Text style={[styles.classText, { color: themeColor }]}>
-                    {displayClass} - {item.subject_name}
-                  </Text>
-                </View>
-                
-                <Text style={[styles.lessonTitle, { color: colors.text }]} numberOfLines={2}>
-                  {item.lession}
-                </Text>
-
-                <View style={styles.progressSection}>
-                  <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-                    <View 
-                      style={[
-                        styles.progressBarFill, 
-                        { width: `${progress}%`, backgroundColor: themeColor }
-                      ]} 
-                    />
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.lessonCard,
+                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }
+                ]}
+                onPress={handleOpenSyllabus}
+                activeOpacity={0.7}
+              >
+                {/* Top Row: Subject Pill + Status Badge */}
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.subjectPill, { backgroundColor: colors.primaryLight }]}>
+                    <Ionicons name="book-outline" size={12} color={colors.primary} />
+                    <Text style={[styles.subjectText, { color: colors.primary }]} numberOfLines={1}>
+                      {item.subject_name || 'General'}
+                    </Text>
                   </View>
-                </View>
 
-                <View style={styles.footer}>
-                  <View style={styles.statusBadge}>
-                    <Ionicons 
-                      name="ellipse" 
-                      size={8} 
-                      color={getStatusColor(item.status)} 
-                      style={styles.statusDot}
-                    />
-                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                      {getStatusText(item.status)}
+                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+                    <Ionicons name={statusConfig.icon} size={11} color={statusConfig.color} />
+                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                      {statusConfig.label}
                     </Text>
                   </View>
                 </View>
-              </View>
+
+                {/* Class identifier */}
+                {!!displayClass && (
+                  <Text style={[styles.classText, { color: colors.textMuted }]} numberOfLines={1}>
+                    {displayClass}
+                  </Text>
+                )}
+
+                {/* Lesson Title */}
+                <Text style={[styles.lessonTitle, { color: colors.text }]} numberOfLines={2}>
+                  {item.lession || 'Untitled Lesson'}
+                </Text>
+
+                {/* Progress Bar & Percentage */}
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressHeader}>
+                    <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Progress</Text>
+                    <Text style={[styles.progressValue, { color: statusConfig.color }]}>
+                      {statusConfig.progress}%
+                    </Text>
+                  </View>
+
+                  <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        { width: `${statusConfig.progress}%`, backgroundColor: statusConfig.color }
+                      ]}
+                    />
+                  </View>
+                </View>
+              </TouchableOpacity>
             );
-          })
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>No syllabus items found</Text>
+          })}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.emptyIconCircle, { backgroundColor: colors.surfaceSubtle }]}>
+            <Ionicons name="book-outline" size={26} color={colors.textMuted} />
           </View>
-        )}
-      </ScrollView>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Syllabus Items</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+            Syllabus and lesson plans for your classes will appear here.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 20,
+    borderRadius: 16,
     paddingVertical: 20,
     marginVertical: 10,
     elevation: 4,
@@ -127,82 +174,134 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   viewAll: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    gap: 15,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingBottom: 4,
   },
   lessonCard: {
-    width: 300,
-    borderRadius: 16,
-    padding: 18,
+    width: 240,
+    borderRadius: 14,
+    padding: 14,
+    marginRight: 12,
     borderWidth: 1,
   },
-  classBadge: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'center',
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  classText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  lessonTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 24,
-    height: 48,
-    marginBottom: 18,
-  },
-  progressSection: {
-    marginBottom: 18,
-  },
-  progressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  footer: {
+  cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  subjectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    maxWidth: 130,
+    gap: 4,
+  },
+  subjectText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusDot: {
-    marginRight: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    gap: 3,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
   },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
+  classText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  emptyText: {
+  lessonTitle: {
     fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 19,
+    minHeight: 38,
+    marginBottom: 14,
+  },
+  progressContainer: {
+    marginTop: 'auto',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  progressLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  progressValue: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  progressBarBg: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  emptyContainer: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

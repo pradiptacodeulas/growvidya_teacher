@@ -11,6 +11,7 @@ import { logout } from '@/redux/features/auth/slice';
 import Toast from 'react-native-toast-message';
 import { useAppTheme } from '@/constants/theme';
 import { getAvatarUrl } from '@/services/apiClient';
+import { getAvatarInitials, isNonEmptyPicture } from '@/utils/avatar';
 
 interface DrawerNavItemProps {
   label: string;
@@ -197,16 +198,30 @@ function CustomDrawerContent(props: any) {
   }, [pathname]);
 
   const { colors } = useAppTheme();
+  const [drawerImgError, setDrawerImgError] = useState(false);
+
+  useEffect(() => {
+    setDrawerImgError(false);
+  }, [user?.picture]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       {/* School Header Section */}
       <View style={[styles.schoolHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View style={[styles.avatarContainer, { backgroundColor: colors.primaryLight }]}>
-          <Image 
-            source={{ uri: getAvatarUrl(user?.picture, user?.gender) }} 
-            style={styles.userAvatar} 
-          />
+        <View style={[styles.avatarContainer, { backgroundColor: colors.primary }]}>
+          {isNonEmptyPicture(user?.picture) && !drawerImgError ? (
+            <Image 
+              source={{ uri: getAvatarUrl(user?.picture, user?.gender) }} 
+              style={styles.userAvatar} 
+              onError={() => setDrawerImgError(true)}
+            />
+          ) : (
+            <View style={[styles.userAvatar, styles.initialsAvatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.initialsText}>
+                {getAvatarInitials(undefined, user?.first_name, user?.last_name)}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.schoolInfo}>
           <Text style={[styles.schoolName, { color: colors.text }]}>{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : ''}</Text>
@@ -538,6 +553,16 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+  },
+  initialsAvatar: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   navItemContainer: {
     flexDirection: 'row',

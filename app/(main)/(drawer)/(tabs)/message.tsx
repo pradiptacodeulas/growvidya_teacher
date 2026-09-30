@@ -18,6 +18,7 @@ import { fetchUnreadCount } from '@/redux/features/chat/slice';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient, getAvatarUrl } from '@/services/apiClient';
 import { connectSocket, getSocket } from '@/services/socket.service';
+import { getAvatarInitials, isNonEmptyPicture } from '@/utils/avatar';
 
 export interface Contact {
   id: number;
@@ -57,38 +58,10 @@ export interface ChatMessage {
   status?: number;
 }
 
-const getInitials = (name?: string, firstName?: string, lastName?: string): string => {
-  const f = (firstName || '').trim();
-  const l = (lastName || '').trim();
-  if (f && l) {
-    return `${f.charAt(0).toUpperCase()}${l.charAt(0).toUpperCase()}`;
-  }
-  if (f) {
-    return f.slice(0, 2).toUpperCase();
-  }
-  if (!name || typeof name !== 'string') return '?';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return `${parts[0].charAt(0).toUpperCase()}${parts[parts.length - 1].charAt(0).toUpperCase()}`;
-};
-
-const isNonEmptyPicture = (pic?: string | null): boolean => {
-  if (!pic || typeof pic !== 'string') return false;
-  const p = pic.trim().toLowerCase();
-  if (p === '' || p === 'null' || p === 'undefined') return false;
-  if (p.includes('male-user.png') || p.includes('female-user.png') || p.includes('placeholder')) {
-    return false;
-  }
-  return true;
-};
-
 function ContactAvatar({ contact, backgroundColor }: { contact: Contact; backgroundColor?: string }) {
   const [imageError, setImageError] = useState(false);
   const initials = useMemo(
-    () => getInitials(contact.name, contact.first_name, contact.last_name),
+    () => getAvatarInitials(contact.name, contact.first_name, contact.last_name),
     [contact.name, contact.first_name, contact.last_name]
   );
   const hasPic = isNonEmptyPicture(contact.picture);
@@ -165,8 +138,7 @@ export default function MessageScreen() {
         rawContacts = res.data?.data?.contacts || res.data?.contacts || res.data?.data || [];
       } catch (err: any) {
         if (err?.response?.status === 404) {
-          const fallbackRes = await apiClient.get('/messages/users');
-          rawContacts = fallbackRes.data?.data?.users || fallbackRes.data?.users || fallbackRes.data?.data || [];
+          rawContacts = [];
         } else {
           throw err;
         }
