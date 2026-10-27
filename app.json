@@ -27,7 +27,11 @@
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -59,8 +63,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c977a0d3-1cca-48c5-bcea-a227120c19a8"
+        "projectId": "7a56ec80-b66f-4818-afaa-fe26ab0e7f7f"
       }
-    }
+    },
+    "owner": "pradipta-karmakar"
   }
 }
