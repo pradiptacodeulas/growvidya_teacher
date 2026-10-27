@@ -117,7 +117,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const typingTimerRef = useRef<any>(null);
 
-  // Keyboard visibility listener for smooth input height adjustment
+  // Keyboard visibility listener for bottom inset adjustment
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -302,7 +302,19 @@ export default function ChatScreen() {
         }
       };
 
+      const handleMessageSent = (sentMsg: any) => {
+        const receiverId = Number(sentMsg.reciver || sentMsg.receiver);
+        const receiverRole = (sentMsg.receiver_role || '').toLowerCase();
+        if (receiverId === contactId && receiverRole === contactRole) {
+          setMessages((prev) => {
+            if (prev.some((m) => String(m.id) === String(sentMsg.id))) return prev;
+            return [sentMsg, ...prev];
+          });
+        }
+      };
+
       activeSocket.on('receive_message', handleReceive);
+      activeSocket.on('message_sent', handleMessageSent);
       activeSocket.on('user_typing', handleUserTyping);
       activeSocket.on('user_stop_typing', handleUserStopTyping);
       activeSocket.on('messages_read', handleMessagesRead);
@@ -313,6 +325,7 @@ export default function ChatScreen() {
 
       cleanup = () => {
         activeSocket.off('receive_message', handleReceive);
+        activeSocket.off('message_sent', handleMessageSent);
         activeSocket.off('user_typing', handleUserTyping);
         activeSocket.off('user_stop_typing', handleUserStopTyping);
         activeSocket.off('messages_read', handleMessagesRead);
@@ -740,7 +753,7 @@ export default function ChatScreen() {
   const isMyMessage = (item: ChatMessage) => {
     const senderId = Number(item.sender);
     const senderRole = (item.sender_role || '').toLowerCase();
-    const receiverId = Number(item.reciver);
+    const receiverId = Number(item.reciver || (item as any).receiver);
     const receiverRole = (item.receiver_role || '').toLowerCase();
 
     // 1. If sender ID matches contact, this is an incoming message from the contact
@@ -809,12 +822,6 @@ export default function ChatScreen() {
     );
   };
 
-  const handleCall = () => {
-    if (!contactPhone) return;
-    Linking.openURL(`tel:${contactPhone}`).catch(() => {
-      Alert.alert('Error', 'Unable to initiate phone call.');
-    });
-  };
 
   const renderMessageItem = ({ item }: { item: ChatMessage }) => {
     const isOutgoing = isMyMessage(item);
@@ -1087,17 +1094,6 @@ export default function ChatScreen() {
           </Text>
         </View>
 
-        {contactPhone ? (
-          <TouchableOpacity
-            style={styles.callButton}
-            onPress={handleCall}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <View style={[styles.callBtnInner, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="call" size={17} color={colors.primary} />
-            </View>
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       {/* Main Conversation & Input with KeyboardAvoidingView */}
@@ -1484,17 +1480,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 1,
   },
-  callButton: {
-    marginLeft: 8,
-    padding: 2,
-  },
-  callBtnInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   loadingCenter: {
     flex: 1,
     justifyContent: 'center',
@@ -1608,7 +1593,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 30,
-    transform: [{ scaleY: -1 }],
   },
   emptyChatTitle: {
     fontSize: 17,

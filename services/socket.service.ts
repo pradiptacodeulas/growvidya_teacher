@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { getServerBaseUrl, getAuthToken } from './apiClient';
+import { getServerBaseUrl, getAuthToken, setAuthToken } from './apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let socket: Socket | null = null;
@@ -12,10 +12,16 @@ export const connectSocket = async (explicitToken?: string): Promise<Socket | nu
 
   if (!token) {
     try {
-      const saved = await AsyncStorage.getItem('user_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        token = parsed?.token || parsed?.data?.token || null;
+      token = await AsyncStorage.getItem('@auth_token');
+      if (!token) {
+        const saved = await AsyncStorage.getItem('user_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          token = parsed?.token || parsed?.access_token || parsed?.data?.token || null;
+        }
+      }
+      if (token) {
+        setAuthToken(token);
       }
     } catch {
       // ignore
@@ -24,29 +30,35 @@ export const connectSocket = async (explicitToken?: string): Promise<Socket | nu
 
   if (!token) return null;
 
-  if (socket && socket.connected) {
-    return socket;
-  }
-
-  if (socket) {
-    socket.auth = { token };
-    socket.connect();
-    return socket;
-  }
-
   const serverUrl = getServerBaseUrl();
+
+  // If socket already exists, ensure it targets the active server URL
+  if (socket) {
+    const currentUri = (socket as any).io?.uri || (socket as any).uri;
+    if (currentUri && currentUri !== serverUrl) {
+      console.log('[Socket] Server URL changed from', currentUri, 'to', serverUrl, '- reconnecting');
+      socket.disconnect();
+      socket = null;
+    } else if (socket.connected) {
+      return socket;
+    } else {
+      socket.auth = { token };
+      socket.connect();
+      return socket;
+    }
+  }
 
   socket = io(serverUrl, {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: 15,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
   });
 
   socket.on('connect', () => {
-    // Socket connected successfully
+    console.log('[Socket] Connected to server successfully:', serverUrl);
   });
 
   socket.on('connect_error', (error) => {

@@ -1,170 +1,91 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-  RefreshControl,
   ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  TextInput,
+  View,
+  Text,
+  StatusBar,
+  RefreshControl,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '@/constants/theme';
-import { useAppDispatch, useAppSelector } from '@/redux/hooks';
-import { fetchUnreadCount } from '@/redux/features/chat/slice';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { apiClient, getAvatarUrl } from '@/services/apiClient';
-import { connectSocket, getSocket } from '@/services/socket.service';
-import { getAvatarInitials, isNonEmptyPicture } from '@/utils/avatar';
+import { useAppTheme } from '@/constants/theme';
+import { useAppDispatch } from '@/redux/hooks';
+import { fetchUnreadCount } from '@/redux/features/chat/slice';
+import { connectSocket } from '@/services/socket.service';
+import { apiFetch } from '@/services/apiClient';
+import ContactCard, { ContactType } from '@/components/message/ContactCard';
 
-export interface Contact {
-  id: number;
-  name: string;
-  first_name?: string;
-  last_name?: string;
-  role: 'admin' | 'parent' | 'student';
-  picture: string | null;
-  phone?: string;
-  email?: string;
-  last_message: string | null;
-  last_message_time: string | null;
-  last_message_seen: number | null;
-  last_message_is_outgoing?: boolean;
-  unread_count: number;
-  is_online?: boolean;
-  designation?: string;
-  child_name?: string;
-  class_name?: string;
-  section_name?: string;
-  code?: string;
-}
+const ROW_HEIGHT = 86;
 
-export interface ChatMessage {
-  id?: number;
-  school_id?: number;
-  sender: number;
-  sender_role: string;
-  reciver: number;
-  receiver_role: string;
-  type?: number;
-  message: string;
-  file: string | null;
-  file_type: string | null;
-  time: string;
-  seen: number;
-  status?: number;
-}
-
-function ContactAvatar({ contact, backgroundColor }: { contact: Contact; backgroundColor?: string }) {
-  const [imageError, setImageError] = useState(false);
-  const initials = useMemo(
-    () => getAvatarInitials(contact.name, contact.first_name, contact.last_name),
-    [contact.name, contact.first_name, contact.last_name]
-  );
-  const hasPic = isNonEmptyPicture(contact.picture);
-
-  if (!hasPic || imageError) {
-    return (
-      <View style={[styles.initialsAvatar, { backgroundColor: backgroundColor || '#3d5ee1' }]}>
-        <Text style={styles.initialsText}>{initials}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image
-      source={{ uri: getAvatarUrl(contact.picture, undefined) }}
-      style={styles.avatar}
-      onError={() => setImageError(true)}
-    />
-  );
-}
+type FilterMode = 'ALL' | 'PARENTS' | 'STUDENTS' | 'ADMINS' | 'TEACHERS' | 'UNREAD';
 
 export default function MessageScreen() {
   const { colors, isDark } = useAppTheme();
-  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const token = useAppSelector((state) => state.auth.token);
-  const currentUser = useAppSelector((state) => state.auth.user);
-  const currentUserId = currentUser?.id ? Number(currentUser.id) : 0;
+  const router = useRouter();
   const params = useLocalSearchParams<{ contactId?: string; role?: string }>();
 
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const contactsRef = useRef<Contact[]>([]);
-  contactsRef.current = contacts;
-  const [isLoading, setIsLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [contacts, setContacts] = useState<ContactType[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Admins' | 'Parents' | 'Students' | 'Unread'>('All');
+  const [filterMode, setFilterMode] = useState<FilterMode>('ALL');
 
-  // Helper to format subText based on contact role
-  const getContactSubText = (c: Contact) => {
-    switch (c.role) {
-      case 'admin':
-        return c.designation || 'School Administration';
-      case 'student':
-        const studentInfo = [];
-        if (c.class_name) studentInfo.push(`Class ${c.class_name}`);
-        if (c.section_name) studentInfo.push(`Sec ${c.section_name}`);
-        return studentInfo.length > 0 ? studentInfo.join(' - ') : 'Student';
-      case 'parent':
-        return c.child_name ? `Parent of ${c.child_name}` : 'Parent';
-      default:
-        return 'Contact';
+  // Handle deep-link or notification navigation directly to chat
+  useEffect(() => {
+    if (params?.contactId) {
+      const targetId = params.contactId;
+      const targetRole = (params.role || 'parent').toLowerCase();
+      router.setParams({ contactId: '', role: '' });
+      router.push({
+        pathname: '/chat/[id]',
+        params: {
+          id: String(targetId),
+          role: targetRole,
+        },
+      });
     }
-  };
-
-  // Safe avatar helper
-  const getContactAvatar = (c: Contact) => {
-    return getAvatarUrl(c.picture, undefined);
-  };
+  }, [params?.contactId, params?.role, router]);
 
   // Fetch contacts from server
-  const fetchContacts = useCallback(async (isRefresh = false) => {
-    if (!token) return;
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-
+  const loadContacts = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
-      let rawContacts: any[] = [];
-      try {
-        const res = await apiClient.get('/messages/contacts');
-        rawContacts = res.data?.data?.contacts || res.data?.contacts || res.data?.data || [];
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          rawContacts = [];
-        } else {
-          throw err;
-        }
-      }
+      const response = await apiFetch('/messages/contacts', {
+        method: 'GET',
+      });
 
-      if (Array.isArray(rawContacts)) {
-        const normalized: Contact[] = rawContacts.map((item: any) => ({
-          id: Number(item.id || item.user_id || item.contact_id),
+      if (response?.success && response?.data) {
+        const rawList = Array.isArray(response.data) ? response.data : [];
+        const normalized: ContactType[] = rawList.map((item: any) => ({
+          id: item.id || item.user_id || item.contact_id,
           name: item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'User',
           first_name: item.first_name || '',
           last_name: item.last_name || '',
-          role: (item.role || 'parent').toLowerCase() as Contact['role'],
+          role: (item.role || 'parent').toLowerCase(),
           picture: item.picture || item.avatar || null,
           phone: item.phone || item.mobile || '',
           email: item.email || '',
-          last_message: item.last_message || item.message || null,
-          last_message_time: item.last_message_time || item.time || item.created_at || null,
-          last_message_seen: item.last_message_seen ?? item.seen ?? null,
-          last_message_is_outgoing: item.last_message_is_outgoing ?? (Number(item.last_message_sender) === currentUserId),
-          unread_count: Number(item.unread_count || 0),
-          is_online: Boolean(item.is_online),
           designation: item.designation || '',
           child_name: item.child_name || item.student_name || '',
           class_name: item.class_name || '',
           section_name: item.section_name || '',
-          code: item.code || '',
+          code: item.code || item.admission_number || '',
+          last_message: item.last_message || item.message || null,
+          last_message_time: item.last_message_time || item.time || item.created_at || null,
+          last_message_seen: item.last_message_seen ?? item.seen ?? null,
+          last_message_is_outgoing: Boolean(item.last_message_is_outgoing),
+          unread_count: Number(item.unread_count || item.unread || 0),
+          unread: Number(item.unread_count || item.unread || 0),
+          is_online: Boolean(item.is_online),
         }));
 
         normalized.sort((a, b) => {
@@ -180,440 +101,439 @@ export default function MessageScreen() {
       } else {
         setContacts([]);
       }
-    } catch (err: any) {
-      console.warn('[MessageScreen] fetchContacts error:', err?.message);
+    } catch (e) {
+      console.warn('Failed to load message contacts:', e);
+      setContacts([]);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
       setRefreshing(false);
     }
-  }, [token, currentUserId]);
+  }, []);
 
-  // Connect Socket & Listen for inbox updates
+  useFocusEffect(
+    useCallback(() => {
+      loadContacts(true);
+      dispatch(fetchUnreadCount());
+    }, [loadContacts, dispatch])
+  );
+
   useEffect(() => {
-    if (!token) return;
+    loadContacts();
+    dispatch(fetchUnreadCount());
+  }, [loadContacts, dispatch]);
 
-    let activeSocket = getSocket();
-    let handlers: Record<string, (...args: any[]) => void> = {};
+  // Real-time socket event handlers
+  useEffect(() => {
+    let activeSocket: any = null;
+    let cleanupListeners: (() => void) | null = null;
 
     const setupSocket = async () => {
-      if (!activeSocket) {
-        activeSocket = await connectSocket(token || undefined);
-      }
+      activeSocket = await connectSocket();
       if (!activeSocket) return;
 
-      const handleReceiveMessage = (msg: ChatMessage) => {
+      const handleReceive = (newMsg: any) => {
+        const senderId = Number(newMsg.sender);
+        const senderRole = (newMsg.sender_role || 'parent').toLowerCase();
+
         setContacts((prev) => {
-          const senderId = Number(msg.sender);
-          const senderRole = (msg.sender_role || '').toLowerCase();
-          const isFromOther = senderId !== currentUserId;
-
-          let found = false;
-          const updated = prev.map((c) => {
-            if (c.id === senderId && c.role.toLowerCase() === senderRole) {
-              found = true;
-              return {
-                ...c,
-                last_message: msg.message || (msg.file ? '📎 Attachment' : ''),
-                last_message_time: msg.time || new Date().toISOString(),
-                last_message_is_outgoing: false,
-                last_message_seen: 0,
-                unread_count: isFromOther ? c.unread_count + 1 : c.unread_count,
-              };
-            }
-            return c;
-          });
-
-          return updated.sort((a, b) => {
-            if (a.last_message_time && b.last_message_time) {
-              return new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime();
-            }
-            if (a.last_message_time) return -1;
-            if (b.last_message_time) return 1;
-            return a.name.localeCompare(b.name);
-          });
+          const idx = prev.findIndex(
+            (c) => Number(c.id) === senderId && (c.role || '').toLowerCase() === senderRole
+          );
+          if (idx >= 0) {
+            const copy = [...prev];
+            const found = copy[idx];
+            const updated: ContactType = {
+              ...found,
+              last_message: newMsg.message || (newMsg.file ? '📎 Sent an attachment' : ''),
+              last_message_time: newMsg.time || new Date().toISOString(),
+              unread_count: (found.unread_count || found.unread || 0) + 1,
+              unread: (found.unread_count || found.unread || 0) + 1,
+            };
+            copy.splice(idx, 1);
+            return [updated, ...copy];
+          } else {
+            loadContacts(true);
+            return prev;
+          }
         });
 
         dispatch(fetchUnreadCount());
       };
 
-      const handleMessageSent = (sentMsg: ChatMessage) => {
+      const handleMessageSent = (sentMsg: any) => {
+        const receiverId = Number(sentMsg.reciver || sentMsg.receiver);
+        const receiverRole = (sentMsg.receiver_role || '').toLowerCase();
+
         setContacts((prev) => {
-          const updated = prev.map((c) =>
-            c.id === sentMsg.reciver && c.role.toLowerCase() === sentMsg.receiver_role.toLowerCase()
-              ? {
-                  ...c,
-                  last_message: sentMsg.message || (sentMsg.file ? '📎 Attachment' : ''),
-                  last_message_time: sentMsg.time || new Date().toISOString(),
-                  last_message_is_outgoing: true,
-                  last_message_seen: 0,
-                }
-              : c
+          const idx = prev.findIndex(
+            (c) => Number(c.id) === receiverId && (c.role || '').toLowerCase() === receiverRole
           );
-          return updated.sort((a, b) => {
-            if (a.last_message_time && b.last_message_time) {
-              return new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime();
-            }
-            return 0;
-          });
+          if (idx >= 0) {
+            const copy = [...prev];
+            const found = copy[idx];
+            const updated: ContactType = {
+              ...found,
+              last_message: sentMsg.message || (sentMsg.file ? '📎 Sent an attachment' : ''),
+              last_message_time: sentMsg.time || new Date().toISOString(),
+              last_message_is_outgoing: true,
+            };
+            copy.splice(idx, 1);
+            return [updated, ...copy];
+          }
+          return prev;
         });
       };
 
-      const handleMessagesRead = ({ readerId, readerRole }: any) => {
+      const handleOnlineList = (onlineKeys: string[]) => {
+        if (!Array.isArray(onlineKeys)) return;
+        const set = new Set(onlineKeys.map((k) => k.toLowerCase()));
         setContacts((prev) =>
-          prev.map((c) =>
-            c.id === Number(readerId) && c.role.toLowerCase() === String(readerRole).toLowerCase()
-              ? { ...c, last_message_seen: 1 }
-              : c
-          )
+          prev.map((c) => {
+            const role = (c.role || 'parent').toLowerCase();
+            const key = `${role}_${c.id}`;
+            const isOnline = set.has(key);
+            return { ...c, is_online: isOnline };
+          })
         );
       };
 
-      const handleUserOnline = ({ userId, role }: any) => {
+      const handleUserOnline = (data: any) => {
+        if (!data?.userId) return;
+        const uid = Number(data.userId);
+        const urole = (data.role || '').toLowerCase();
         setContacts((prev) =>
           prev.map((c) =>
-            c.id === Number(userId) && c.role.toLowerCase() === String(role).toLowerCase()
+            Number(c.id) === uid && (c.role || '').toLowerCase() === urole
               ? { ...c, is_online: true }
               : c
           )
         );
       };
 
-      const handleUserOffline = ({ userId, role }: any) => {
+      const handleUserOffline = (data: any) => {
+        if (!data?.userId) return;
+        const uid = Number(data.userId);
+        const urole = (data.role || '').toLowerCase();
         setContacts((prev) =>
           prev.map((c) =>
-            c.id === Number(userId) && c.role.toLowerCase() === String(role).toLowerCase()
+            Number(c.id) === uid && (c.role || '').toLowerCase() === urole
               ? { ...c, is_online: false }
               : c
           )
         );
       };
 
-      const handleOnlineUsersList = (onlineKeys: string[]) => {
-        if (!Array.isArray(onlineKeys)) return;
-        const set = new Set(onlineKeys.map((k) => k.toLowerCase()));
-        setContacts((prev) =>
-          prev.map((c) => ({
-            ...c,
-            is_online: set.has(`${c.role.toLowerCase()}_${c.id}`),
-          }))
-        );
+      const handleMessagesRead = (data: any) => {
+        if (data?.senderId || data?.readerId) {
+          const id = Number(data.senderId || data.readerId);
+          const role = String(data.senderRole || data.readerRole || '').toLowerCase();
+          setContacts((prev) =>
+            prev.map((c) => {
+              if (Number(c.id) === id && (!role || (c.role || '').toLowerCase() === role)) {
+                return { ...c, unread_count: 0, unread: 0, last_message_seen: 1 };
+              }
+              return c;
+            })
+          );
+          dispatch(fetchUnreadCount());
+        }
       };
 
-      handlers = {
-        receive_message: handleReceiveMessage,
-        message_sent: handleMessageSent,
-        messages_read: handleMessagesRead,
-        user_online: handleUserOnline,
-        user_offline: handleUserOffline,
-        online_users_list: handleOnlineUsersList,
-      };
+      activeSocket.on('receive_message', handleReceive);
+      activeSocket.on('message_sent', handleMessageSent);
+      activeSocket.on('online_users_list', handleOnlineList);
+      activeSocket.on('user_online', handleUserOnline);
+      activeSocket.on('user_offline', handleUserOffline);
+      activeSocket.on('messages_read', handleMessagesRead);
 
-      Object.entries(handlers).forEach(([event, fn]) => {
-        activeSocket?.on(event, fn);
-      });
+      cleanupListeners = () => {
+        activeSocket.off('receive_message', handleReceive);
+        activeSocket.off('message_sent', handleMessageSent);
+        activeSocket.off('online_users_list', handleOnlineList);
+        activeSocket.off('user_online', handleUserOnline);
+        activeSocket.off('user_offline', handleUserOffline);
+        activeSocket.off('messages_read', handleMessagesRead);
+      };
     };
 
     setupSocket();
 
     return () => {
-      if (activeSocket) {
-        Object.entries(handlers).forEach(([event, fn]) => {
-          activeSocket?.off(event, fn);
-        });
+      if (cleanupListeners) {
+        cleanupListeners();
       }
     };
-  }, [token, currentUserId, dispatch]);
+  }, [dispatch, loadContacts]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchContacts();
-      dispatch(fetchUnreadCount());
-    }, [fetchContacts, dispatch])
-  );
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadContacts(true);
+    dispatch(fetchUnreadCount());
+  }, [loadContacts, dispatch]);
 
-  // Filter contacts counts
-  const filterCounts = useMemo(() => {
-    return {
-      All: contacts.length,
-      Admins: contacts.filter((c) => c.role === 'admin').length,
-      Parents: contacts.filter((c) => c.role === 'parent').length,
-      Students: contacts.filter((c) => c.role === 'student').length,
-      Unread: contacts.filter((c) => c.unread_count > 0).length,
-    };
+  const unreadTotal = useMemo(() => {
+    return contacts.reduce((sum, c) => sum + (c.unread_count || c.unread || 0), 0);
   }, [contacts]);
 
-  // Filtered contacts list
-  const filteredContacts = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return contacts.filter((c) => {
-      const nameMatch = c.name?.toLowerCase().includes(q);
-      const subMatch = getContactSubText(c).toLowerCase().includes(q);
-      const lastMsgMatch = c.last_message?.toLowerCase().includes(q);
-      const matchesSearch = !q || nameMatch || subMatch || lastMsgMatch;
+  const counts = useMemo(() => {
+    return {
+      all: contacts.length,
+      parents: contacts.filter((c) => (c.role || '').toLowerCase() === 'parent').length,
+      students: contacts.filter((c) => (c.role || '').toLowerCase() === 'student').length,
+      admins: contacts.filter((c) => (c.role || '').toLowerCase() === 'admin').length,
+      teachers: contacts.filter((c) => (c.role || '').toLowerCase() === 'teacher').length,
+      unread: unreadTotal,
+    };
+  }, [contacts, unreadTotal]);
 
-      let matchesFilter = true;
-      if (activeFilter === 'Admins') matchesFilter = c.role === 'admin';
-      else if (activeFilter === 'Parents') matchesFilter = c.role === 'parent';
-      else if (activeFilter === 'Students') matchesFilter = c.role === 'student';
-      else if (activeFilter === 'Unread') matchesFilter = c.unread_count > 0;
+  const filtered = useMemo(() => {
+    let result = contacts;
 
-      return matchesSearch && matchesFilter;
+    // Apply role/unread filter
+    if (filterMode === 'UNREAD') {
+      result = result.filter((c) => (c.unread_count || c.unread || 0) > 0);
+    } else if (filterMode === 'PARENTS') {
+      result = result.filter((c) => (c.role || '').toLowerCase() === 'parent');
+    } else if (filterMode === 'STUDENTS') {
+      result = result.filter((c) => (c.role || '').toLowerCase() === 'student');
+    } else if (filterMode === 'ADMINS') {
+      result = result.filter((c) => (c.role || '').toLowerCase() === 'admin');
+    } else if (filterMode === 'TEACHERS') {
+      result = result.filter((c) => (c.role || '').toLowerCase() === 'teacher');
+    }
+
+    // Apply search query filter
+    const q = query.toLowerCase().trim();
+    if (!q) return result;
+
+    return result.filter((c) => {
+      const name = (c.name || '').toLowerCase();
+      const role = (c.role || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      const child = (c.child_name || '').toLowerCase();
+      const cls = (c.class_name || '').toLowerCase();
+      const sec = (c.section_name || '').toLowerCase();
+      const des = (c.designation || '').toLowerCase();
+      const lastMsg = (c.last_message || '').toLowerCase();
+
+      return (
+        name.includes(q) ||
+        role.includes(q) ||
+        phone.includes(q) ||
+        child.includes(q) ||
+        cls.includes(q) ||
+        sec.includes(q) ||
+        des.includes(q) ||
+        lastMsg.includes(q)
+      );
     });
-  }, [contacts, searchQuery, activeFilter]);
-
-  // Open a conversation as a dedicated screen
-  const handleOpenChat = (contact: Contact) => {
-    router.push({
-      pathname: '/chat/[id]',
-      params: {
-        id: String(contact.id),
-        role: contact.role,
-        name: contact.name,
-        picture: contact.picture || '',
-        phone: contact.phone || '',
-        email: contact.email || '',
-        designation: contact.designation || '',
-        child_name: contact.child_name || '',
-        class_name: contact.class_name || '',
-        section_name: contact.section_name || '',
-      },
-    });
-  };
-
-  // Backward compatibility: If navigated with contactId query param, route directly to chat screen
-  useEffect(() => {
-    if (params?.contactId) {
-      const targetId = params.contactId;
-      const targetRole = params.role || '';
-      router.setParams({ contactId: '', role: '' });
-      router.push({
-        pathname: '/chat/[id]',
-        params: {
-          id: String(targetId),
-          role: targetRole,
-        },
-      });
-    }
-  }, [params?.contactId, params?.role, router]);
-
-  // Format relative timestamp
-  const formatRelativeTime = (dateStr?: string | null) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return String(dateStr);
-      const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24 && d.getDate() === now.getDate()) {
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      if (d.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday';
-      }
-      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    } catch {
-      return String(dateStr);
-    }
-  };
-
-  // Role badge styling
-  const getRoleBadgeStyle = (role: Contact['role']) => {
-    switch (role) {
-      case 'admin':
-        return { bg: isDark ? 'rgba(61, 94, 225, 0.2)' : '#eef2ff', text: colors.primary, label: 'Admin' };
-      case 'parent':
-        return { bg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5', text: '#059669', label: 'Parent' };
-      case 'student':
-        return { bg: isDark ? 'rgba(139, 92, 246, 0.2)' : '#ede9fe', text: '#7c3aed', label: 'Student' };
-      default:
-        return { bg: colors.surfaceSubtle, text: colors.textMuted, label: role };
-    }
-  };
+  }, [query, contacts, filterMode]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header Banner */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Messages & Inbox</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-              Connect with parents, students, and administration
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.refreshIconBtn, { backgroundColor: colors.surfaceSubtle }]}
-            onPress={() => fetchContacts(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh" size={18} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-        {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
-          <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
+      <View style={styles.content}>
+        {/* Modern Search Bar */}
+        <View
+          style={[
+            styles.searchContainer,
+            { backgroundColor: colors.inputBg, borderColor: colors.border, borderWidth: 1 },
+          ]}
+        >
+          <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search contacts, parents, or messages..."
+            placeholder="Search parents, students, staff..."
             placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={query}
+            onChangeText={setQuery}
+            style={[styles.searchInput, { color: colors.text }]}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
-      </View>
 
-      {/* Filter Tabs */}
-      <View style={[styles.filterBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {(['All', 'Admins', 'Parents', 'Students', 'Unread'] as const).map((filter) => {
-            const isActive = activeFilter === filter;
-            const count = filterCounts[filter];
-            return (
+        {/* Modern Filter Chips matching Parent App */}
+        <View style={styles.filterRowContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <TouchableOpacity
+              onPress={() => setFilterMode('ALL')}
+              style={[
+                styles.filterChip,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                filterMode === 'ALL' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: colors.textSecondary },
+                  filterMode === 'ALL' && { color: colors.primary, fontWeight: '700' },
+                ]}
+              >
+                All Messages ({counts.all})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setFilterMode('PARENTS')}
+              style={[
+                styles.filterChip,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                filterMode === 'PARENTS' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: colors.textSecondary },
+                  filterMode === 'PARENTS' && { color: colors.primary, fontWeight: '700' },
+                ]}
+              >
+                Parents ({counts.parents})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setFilterMode('STUDENTS')}
+              style={[
+                styles.filterChip,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                filterMode === 'STUDENTS' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: colors.textSecondary },
+                  filterMode === 'STUDENTS' && { color: colors.primary, fontWeight: '700' },
+                ]}
+              >
+                Students ({counts.students})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setFilterMode('ADMINS')}
+              style={[
+                styles.filterChip,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                filterMode === 'ADMINS' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: colors.textSecondary },
+                  filterMode === 'ADMINS' && { color: colors.primary, fontWeight: '700' },
+                ]}
+              >
+                Admins ({counts.admins})
+              </Text>
+            </TouchableOpacity>
+
+            {counts.teachers > 0 && (
               <TouchableOpacity
-                key={filter}
+                onPress={() => setFilterMode('TEACHERS')}
                 style={[
                   styles.filterChip,
-                  { backgroundColor: isActive ? colors.primary : colors.surfaceSubtle },
+                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                  filterMode === 'TEACHERS' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                 ]}
-                onPress={() => setActiveFilter(filter)}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.textSecondary }]}>
-                  {filter}
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    { color: colors.textSecondary },
+                    filterMode === 'TEACHERS' && { color: colors.primary, fontWeight: '700' },
+                  ]}
+                >
+                  Colleagues ({counts.teachers})
                 </Text>
-                {count > 0 && (
-                  <View
-                    style={[
-                      styles.filterCountBadge,
-                      { backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : colors.border },
-                    ]}
-                  >
-                    <Text style={[styles.filterCountText, { color: isActive ? '#fff' : colors.textSecondary }]}>
-                      {count}
-                    </Text>
-                  </View>
-                )}
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+            )}
 
-      {/* Conversation List */}
-      {isLoading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading conversations...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredContacts}
-          keyExtractor={(item) => `${item.role}_${item.id}`}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => (
-            <View style={[styles.separator, { backgroundColor: colors.border }]} />
-          )}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => fetchContacts(true)}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <View style={[styles.emptyIconCircle, { backgroundColor: colors.surfaceSubtle }]}>
-                <Ionicons name="chatbubbles-outline" size={42} color={colors.textMuted} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Conversations Found</Text>
-              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-                {searchQuery
-                  ? 'No contacts matched your search. Try a different query.'
-                  : 'Your messages with school administration, parents, and students will appear here.'}
+            <TouchableOpacity
+              onPress={() => setFilterMode('UNREAD')}
+              style={[
+                styles.filterChip,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                filterMode === 'UNREAD' && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: colors.textSecondary },
+                  filterMode === 'UNREAD' && { color: colors.primary, fontWeight: '700' },
+                ]}
+              >
+                Unread ({counts.unread})
               </Text>
-              <TouchableOpacity
-                style={[styles.retryButton, { backgroundColor: colors.primary, marginTop: 16 }]}
-                onPress={() => fetchContacts(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="refresh" size={16} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.retryButtonText}>Refresh</Text>
-              </TouchableOpacity>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const badgeStyle = getRoleBadgeStyle(item.role);
-            const subText = getContactSubText(item);
-            const hasUnread = item.unread_count > 0;
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
 
-            return (
-              <TouchableOpacity
-                style={styles.convRow}
-                onPress={() => handleOpenChat(item)}
-                activeOpacity={0.6}
-              >
-                <View style={styles.avatarWrapper}>
-                  <ContactAvatar contact={item} backgroundColor={colors.primary} />
-                  {item.is_online && (
-                    <View style={[styles.onlineDot, { borderColor: colors.background }]} />
-                  )}
-                </View>
-
-                <View style={styles.convBody}>
-                  <View style={styles.convHeader}>
-                    <View style={styles.nameContainer}>
-                      <Text style={[styles.convName, { color: colors.text }]} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <View style={[styles.roleBadge, { backgroundColor: badgeStyle.bg }]}>
-                        <Text style={[styles.roleText, { color: badgeStyle.text }]}>{badgeStyle.label}</Text>
-                      </View>
-                    </View>
-                    {item.last_message_time ? (
-                      <Text
-                        style={[
-                          styles.convTime,
-                          {
-                            color: hasUnread ? colors.primary : colors.textMuted,
-                            fontWeight: hasUnread ? '700' : '500',
-                          },
-                        ]}
-                      >
-                        {formatRelativeTime(item.last_message_time)}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.convSubRow}>
-                    <Text style={[styles.subText, { color: colors.textMuted }]} numberOfLines={1}>
-                      {subText}
-                    </Text>
-                    {hasUnread && (
-                      <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-                        <Text style={styles.unreadCountText}>{item.unread_count}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+        {loading && !refreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading conversations...</Text>
+          </View>
+        ) : filtered && filtered.length > 0 ? (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => `${item.role || 'contact'}_${item.id}`}
+            renderItem={({ item }) => <ContactCard contact={item} />}
+            contentContainerStyle={{
+              paddingBottom: insets.bottom + 90,
+              paddingTop: 4,
+            }}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
+            })}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        ) : (
+          <View style={styles.centerContainer}>
+            <Ionicons name="chatbubbles-outline" size={44} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {query ? 'No Contacts Found' : 'No Conversations'}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              {query
+                ? 'Try searching for a different name, role, or student class.'
+                : 'Parents, students, and administration will appear here. Tap to start messaging.'}
+            </Text>
+            <TouchableOpacity
+              onPress={onRefresh}
+              style={[styles.refreshBtn, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh" size={14} color={colors.primary} />
+              <Text style={[styles.refreshBtnText, { color: colors.primary }]}>Refresh Contacts</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -622,227 +542,80 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    marginTop: 3,
-    fontWeight: '500',
-  },
-  refreshIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+  content: {
+    flex: 1,
+    paddingTop: 12,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
-    marginTop: 14,
-    borderWidth: 1,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 48,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
+    height: '100%',
+    fontWeight: '500',
   },
-  filterBar: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+  filterRowContainer: {
+    marginBottom: 10,
   },
-  filterList: {
-    paddingHorizontal: 20,
+  filterRow: {
+    paddingHorizontal: 16,
     gap: 8,
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
     paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    gap: 6,
+    borderWidth: 1,
   },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  filterCountBadge: {
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  filterCountText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  listContent: {
-    flexGrow: 1,
-    paddingBottom: 24,
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 32,
+    marginTop: 40,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    fontWeight: '600',
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+    marginTop: 14,
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 13,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
+    marginBottom: 16,
   },
-  retryButton: {
+  refreshBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  convRow: {
-    flexDirection: 'row',
+    gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 78,
-  },
-  avatarWrapper: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#e2e8f0',
-  },
-  initialsAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  initialsText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 13,
-    height: 13,
-    borderRadius: 6.5,
-    backgroundColor: '#10b981',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  convBody: {
-    flex: 1,
-  },
-  convHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
-  },
-  convName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginRight: 6,
-  },
-  roleBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
-  },
-  roleText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  convTime: {
-    fontSize: 12,
-  },
-  convSubRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  subText: {
+  refreshBtnText: {
     fontSize: 13,
-    flex: 1,
-    marginRight: 8,
-  },
-  unreadBadge: {
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  unreadCountText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

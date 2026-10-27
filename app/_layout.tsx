@@ -1,4 +1,3 @@
-import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { store } from "@/redux/store";
 import { loginSuccess, logout } from "@/redux/features/auth/slice";
 import { setTheme } from "@/redux/features/ui/slice";
@@ -19,8 +18,21 @@ import { useAppTheme } from "@/constants/theme";
 import GlobalMessageListener from "@/components/GlobalMessageListener";
 import InAppChatNotification from "@/components/InAppChatNotification";
 
+import { getMessaging, setBackgroundMessageHandler, RemoteMessage } from '@react-native-firebase/messaging';
+import { registerForPushNotificationsAsync } from "@/services/notification.service";
+
+// Top-level background message handler for when app is killed or in background
+try {
+  const messagingInstance = getMessaging();
+  setBackgroundMessageHandler(messagingInstance, async (remoteMessage: RemoteMessage) => {
+    console.log('[FCM Background Message Received]:', remoteMessage?.messageId);
+  });
+} catch (e) {
+  console.warn('[FCM Background Handler Init Warning]:', e);
+}
+
 // Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const toastConfig: ToastConfig = {
   success: (props) => (
@@ -44,6 +56,22 @@ const toastConfig: ToastConfig = {
       {...props}
       style={{
         borderLeftColor: '#EF4444',
+        borderRadius: 14,
+        height: 'auto',
+        minHeight: 56,
+        paddingVertical: 8,
+        backgroundColor: '#FFFFFF',
+      }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}
+      text2Style={{ fontSize: 12.5, color: '#4B5563' }}
+    />
+  ),
+  warning: (props) => (
+    <BaseToast
+      {...props}
+      style={{
+        borderLeftColor: '#F59E0B',
         borderRadius: 14,
         height: 'auto',
         minHeight: 56,
@@ -132,22 +160,24 @@ function RootAppContent() {
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
 
   useEffect(() => {
     async function prepare() {
       try {
         // Manually load user data and theme settings from local storage on startup
         const savedUserStr = await AsyncStorage.getItem('user_data');
+        const dedicatedToken = await AsyncStorage.getItem('@auth_token');
         if (savedUserStr) {
           try {
             const userData = JSON.parse(savedUserStr);
             if (userData && typeof userData === 'object') {
-              const token = userData.token || userData.data?.token;
+              const token = dedicatedToken || userData.token || userData.data?.token;
               if (token) {
                 setAuthToken(token);
+                userData.token = token;
               }
               store.dispatch(loginSuccess(userData));
+              registerForPushNotificationsAsync().catch(() => {});
             }
           } catch (parseErr) {
             console.warn('Corrupted user_data in AsyncStorage, removing:', parseErr);
@@ -162,7 +192,6 @@ export default function RootLayout() {
           store.dispatch(setTheme('light'));
           await AsyncStorage.setItem('app_theme', 'light');
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
       } catch (e) {
         console.warn('Failed to load user data from local storage:', e);
       } finally {
@@ -174,27 +203,23 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (appIsReady) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [appIsReady]);
 
+  if (!appIsReady) {
+    return null;
+  }
+
   return (
-    <MenuProvider>
+    <Provider store={store}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Provider store={store}>
-          <BottomSheetModalProvider>
-            {!appIsReady || !splashAnimationFinished ? (
-              <View style={{ flex: 1 }}>
-                <AnimatedSplashScreen
-                  onAnimationFinish={() => setSplashAnimationFinished(true)}
-                />
-              </View>
-            ) : (
-              <RootAppContent />
-            )}
-          </BottomSheetModalProvider>
-        </Provider>
+        <BottomSheetModalProvider>
+          <MenuProvider>
+            <RootAppContent />
+          </MenuProvider>
+        </BottomSheetModalProvider>
       </GestureHandlerRootView>
-    </MenuProvider>
+    </Provider>
   );
 }

@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { sortResponseDropdowns } from '@/utils/dropdownSort';
 
@@ -43,22 +44,20 @@ export const getBaseApiUrl = (): string => {
       const port = cleanUrl.match(/:(\d+)/)?.[1] || String(API_PORT);
       const pathSuffix = cleanUrl.replace(/^https?:\/\/[^/]+/, '') || '/api/v1';
 
-      // If configured URL is localhost or a private LAN IP (10.x, 192.168.x, 172.x):
-      const isPrivateLan =
-        isLocalhost ||
-        /^https?:\/\/(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(?::\d+)?/i.test(
-          cleanUrl
-        );
-
-      if (isPrivateLan) {
+      // Only override if configured URL is localhost or 127.0.0.1
+      if (isLocalhost) {
         const expoHost = getHostFromExpo();
         if (expoHost) {
           return `http://${expoHost}:${port}${pathSuffix}`;
         }
-      }
 
-      if (isLocalhost && Platform.OS === 'android') {
-        return `http://10.0.2.2:${port}${pathSuffix}`;
+        if (Device.isDevice) {
+          return `http://192.168.29.144:${port}${pathSuffix}`;
+        }
+
+        if (Platform.OS === 'android') {
+          return `http://10.0.2.2:${port}${pathSuffix}`;
+        }
       }
     }
 
@@ -190,13 +189,16 @@ apiClient.interceptors.request.use(
     let token = inMemoryToken;
     if (!token) {
       try {
-        const saved = await AsyncStorage.getItem('user_data');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          token = parsed?.token || parsed?.data?.token || null;
-          if (token) {
-            inMemoryToken = token;
+        token = await AsyncStorage.getItem('@auth_token');
+        if (!token) {
+          const saved = await AsyncStorage.getItem('user_data');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            token = parsed?.token || parsed?.data?.token || null;
           }
+        }
+        if (token) {
+          inMemoryToken = token;
         }
       } catch {
         // ignore
@@ -204,7 +206,12 @@ apiClient.interceptors.request.use(
     }
 
     if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+    }
+
+    // If data is FormData, remove manual Content-Type so Axios/engine creates multipart boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
 
     return config;
@@ -212,8 +219,11 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-export const cleanErrorMessage = (msg: any): string => {
-  if (!msg) return 'An unexpected error occurred. Please try again.';
+export const cleanErrorMessage = (
+  msg: any,
+  fallback: string = 'An unexpected error occurred. Please try again.'
+): string => {
+  if (!msg) return fallback;
   if (typeof msg !== 'string') return String(msg);
 
   let text = msg.trim();
@@ -270,7 +280,7 @@ export const cleanErrorMessage = (msg: any): string => {
 
   // Generic uninformative phrases
   if (/^(failed|error|failed!|error!|something went wrong|an error occurred|operation failed)$/i.test(text)) {
-    return 'The requested operation could not be completed. Please try again.';
+    return fallback;
   }
 
   return text;
@@ -426,13 +436,16 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
   let token = inMemoryToken;
   if (!token) {
     try {
-      const saved = await AsyncStorage.getItem('user_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        token = parsed?.token || parsed?.data?.token || null;
-        if (token) {
-          inMemoryToken = token;
+      token = await AsyncStorage.getItem('@auth_token');
+      if (!token) {
+        const saved = await AsyncStorage.getItem('user_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          token = parsed?.token || parsed?.data?.token || null;
         }
+      }
+      if (token) {
+        inMemoryToken = token;
       }
     } catch {
       // ignore

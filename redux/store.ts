@@ -26,12 +26,18 @@ const persistMiddleware = (store: any) => (next: any) => (action: any) => {
     action.type === 'auth/fetchProfile/fulfilled'
   ) {
     const authState = store.getState()?.auth;
+    const token = authState?.token || authState?.user?.token;
     if (authState?.user) {
-      AsyncStorage.setItem('user_data', JSON.stringify(authState.user));
-      setAuthToken(authState.token || authState.user.token || null);
+      const userToSave = { ...authState.user, token };
+      AsyncStorage.setItem('user_data', JSON.stringify(userToSave));
+      if (token) {
+        AsyncStorage.setItem('@auth_token', token);
+        setAuthToken(token);
+      }
     }
   } else if (action.type === 'auth/logout') {
     AsyncStorage.removeItem('user_data');
+    AsyncStorage.removeItem('@auth_token');
     setAuthToken(null);
     store.dispatch(clearChatState());
   } else if (action.type === 'ui/setTheme') {

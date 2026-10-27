@@ -306,6 +306,11 @@ function CustomDrawerContent(props: any) {
               isActive={isActive('/(main)/(drawer)/attendance')}
               onPress={() => navigateTo('/(main)/(drawer)/attendance')}
             />
+            <DrawerSubNavItem
+              label="Scan QR Attendance"
+              isActive={isActive('/(main)/(drawer)/qr-attendance')}
+              onPress={() => navigateTo('/(main)/(drawer)/qr-attendance')}
+            />
           </View>
         )}
 
@@ -482,8 +487,11 @@ export default function DrawerLayout() {
         <Drawer.Screen name="academic/assignment-subjects" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="academic/assignment-details" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="academic/add-assignment" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="academic/add-study-material" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="academic/material-types" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="take-attendance" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="qr-attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/schedule" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/results" options={{ drawerItemStyle: { display: 'none' } }} />

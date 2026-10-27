@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import Toast from 'react-native-toast-message';
+import { AppState, AppStateStatus } from 'react-native';
+import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
   fetchUnreadCount,
@@ -9,16 +8,28 @@ import {
   setLastReceivedMessage,
 } from '@/redux/features/chat/slice';
 import { connectSocket, getSocket, disconnectSocket } from '@/services/socket.service';
-import { getAvatarUrl } from '@/services/apiClient';
+import * as Notifications from 'expo-notifications';
+import {
+  getMessaging,
+  onMessage,
+  onNotificationOpenedApp,
+  getInitialNotification,
+  RemoteMessage,
+} from '@react-native-firebase/messaging';
+import {
+  registerForPushNotificationsAsync,
+  unregisterPushToken,
+  handleNotificationResponse,
+  handleNotificationData,
+} from '@/services/notification.service';
 
 /**
  * GlobalMessageListener
  * Mounts at the root app level to maintain active real-time socket connection,
  * listen for incoming messages globally, update unread count badges,
- * and display in-app notifications/toasts when messages arrive.
+ * and display system push notifications when messages arrive (without in-app toast banners).
  */
 export default function GlobalMessageListener() {
-  const router = useRouter();
   const dispatch = useAppDispatch();
   const token = useAppSelector((state) => state.auth.token);
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
@@ -30,9 +41,103 @@ export default function GlobalMessageListener() {
   const receiveMessageRef = useRef<((msg: any) => void) | null>(null);
   const messagesReadRef = useRef<(() => void) | null>(null);
 
+  // Set of recently notified message IDs to prevent duplicate alerts between Socket and FCM
+  const recentNotifiedIdsRef = useRef<Set<string>>(new Set());
+
+  const markMessageNotified = (key: string): boolean => {
+    if (!key) return false;
+    if (recentNotifiedIdsRef.current.has(key)) return false;
+    recentNotifiedIdsRef.current.add(key);
+    setTimeout(() => {
+      recentNotifiedIdsRef.current.delete(key);
+    }, 15000);
+    return true;
+  };
+
+  // Setup push notification tap response listener (deep link on notification click)
+  useEffect(() => {
+    const responseSub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    return () => {
+      responseSub.remove();
+    };
+  }, []);
+
+  // Setup Firebase Cloud Messaging notification listeners (foreground and tap routing)
+  useEffect(() => {
+    let unsubscribeForeground = () => {};
+    let unsubscribeNotificationOpened = () => {};
+
+    try {
+      const messagingInstance = getMessaging();
+
+      // 1. App in foreground: listen for incoming remote messages
+      unsubscribeForeground = onMessage(messagingInstance, async (remoteMessage: RemoteMessage) => {
+        console.log('[FCM Foreground Message Received]:', remoteMessage);
+
+        const isChat = remoteMessage.data?.type === 'chat' || Boolean(remoteMessage.data?.senderId);
+        const socketConnected = getSocket()?.connected;
+
+        // If socket is connected and this is a chat message, let the socket handler handle it
+        if (isChat && socketConnected) {
+          return;
+        }
+
+        const msgKey =
+          remoteMessage.messageId ||
+          (remoteMessage.data?.messageId ? String(remoteMessage.data.messageId) : null);
+
+        if (msgKey && !markMessageNotified(msgKey)) {
+          return; // Duplicate
+        }
+
+        if (remoteMessage.notification) {
+          const title = remoteMessage.notification.title || 'Growvidya Alert';
+          const body = remoteMessage.notification.body || '';
+
+          // Display Android system tray push notification with sound
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title,
+              body,
+              data: remoteMessage.data || {},
+              sound: 'default',
+            },
+            trigger: null,
+          }).catch(() => {});
+        }
+      });
+
+      // 2. Notification opened when app was in BACKGROUND
+      unsubscribeNotificationOpened = onNotificationOpenedApp(messagingInstance, (remoteMessage: RemoteMessage) => {
+        console.log('[FCM Notification Opened from Background]:', remoteMessage);
+        if (remoteMessage?.data) {
+          handleNotificationData(remoteMessage.data);
+        }
+      });
+
+      // 3. Notification opened from cold start / KILLED state
+      getInitialNotification(messagingInstance)
+        .then((remoteMessage: RemoteMessage | null) => {
+          if (remoteMessage?.data) {
+            console.log('[FCM Notification Opened from Cold Start]:', remoteMessage);
+            handleNotificationData(remoteMessage.data);
+          }
+        })
+        .catch(() => {});
+    } catch (e) {
+      console.warn('[FCM Listener Init Warning]:', e);
+    }
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribeNotificationOpened();
+    };
+  }, []);
+
   // Initialize socket and listeners when authenticated
   useEffect(() => {
     if (!token && !isAuthenticated) {
+      unregisterPushToken().catch(() => {});
       disconnectSocket();
       return;
     }
@@ -41,6 +146,9 @@ export default function GlobalMessageListener() {
 
     const initialize = async () => {
       try {
+        // Register device push token with backend
+        registerForPushNotificationsAsync().catch(() => {});
+
         // 1. Connect socket globally
         const socket = await connectSocket(token || undefined);
         if (!socket || !isMounted) return;
@@ -73,7 +181,12 @@ export default function GlobalMessageListener() {
           // Otherwise, increment unread badge count
           dispatch(incrementUnreadCount());
 
-          // Display rich in-app notification banner
+          // Deduplicate notification
+          const msgKey = msg.id ? `msg_${msg.id}` : `${msgSenderKey}_${msg.message || ''}_${Date.now()}`;
+          if (!markMessageNotified(msgKey)) {
+            return;
+          }
+
           const senderName =
             msg.sender_name ||
             (msg.sender_role
@@ -81,44 +194,22 @@ export default function GlobalMessageListener() {
               : 'New Message');
           const messagePreview =
             msg.message || (msg.file ? '📎 Sent an attachment' : 'Sent you a message');
-          const rawPic = msg.sender_picture || msg.picture || msg.avatar;
-          const avatarUrl = rawPic ? getAvatarUrl(rawPic, msg.sender_gender) : null;
 
-          try {
-            Toast.show({
-              type: 'chat_message',
-              text1: senderName,
-              text2: messagePreview,
-              visibilityTime: 5500,
-              topOffset: Platform.OS === 'ios' ? 52 : 36,
-              props: {
+          // Schedule local heads-up push notification in Android notification bar with sound/vibration
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: senderName,
+              body: messagePreview,
+              data: {
                 senderId: msg.sender,
                 senderRole: msg.sender_role,
-                avatarUrl,
-                time: 'Just now',
+                senderName,
+                message: messagePreview,
               },
-              onPress: () => {
-                Toast.hide();
-                router.push({
-                  pathname: '/chat/[id]',
-                  params: {
-                    id: String(msg.sender),
-                    role: String(msg.sender_role || '').toLowerCase(),
-                    name: senderName,
-                    picture: rawPic || '',
-                  },
-                });
-              },
-            });
-          } catch (toastErr) {
-            console.warn('[GlobalMessageListener] Failed to show chat_message toast, using fallback:', toastErr);
-            Toast.show({
-              type: 'info',
-              text1: senderName,
-              text2: messagePreview,
-              visibilityTime: 4000,
-            });
-          }
+              sound: 'default',
+            },
+            trigger: null,
+          }).catch(() => {});
         };
 
         const handleMessagesRead = () => {
@@ -173,7 +264,7 @@ export default function GlobalMessageListener() {
         }
       }
     };
-  }, [token, isAuthenticated, dispatch, router]);
+  }, [token, isAuthenticated, dispatch]);
 
   return null;
 }

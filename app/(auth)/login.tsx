@@ -1,7 +1,8 @@
 import { useAppTheme } from "@/constants/theme";
 import { loginFailure, loginStart, loginSuccess } from "@/redux/features/auth/slice";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { apiClient, setAuthToken } from "@/services/apiClient";
+import { apiClient, setAuthToken, cleanErrorMessage } from "@/services/apiClient";
+import { registerForPushNotificationsAsync } from "@/services/notification.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -108,6 +109,7 @@ export default function LoginScreen() {
     };
 
     dispatch(loginSuccess(userData));
+    registerForPushNotificationsAsync().catch(() => {});
     Toast.show({
       type: "success",
       text1: "Welcome Back!",
@@ -162,8 +164,10 @@ export default function LoginScreen() {
         passcodeInputRef.current?.focus();
       }, 300);
     } catch (err: any) {
-      const errMsg =
-        err.message || "Failed to generate passcode. Please check your credentials.";
+      const errMsg = cleanErrorMessage(
+        err?.response?.data?.message || err?.message,
+        "Failed to generate passcode. Please check your credentials."
+      );
       Toast.show({
         type: "error",
         text1: "Request Failed",
@@ -210,8 +214,10 @@ export default function LoginScreen() {
         });
       }
     } catch (err: any) {
-      const errMsg =
-        err.message || "Invalid or expired 6-digit passcode. Please try again.";
+      const errMsg = cleanErrorMessage(
+        err?.response?.data?.message || err?.message,
+        "Invalid or expired 6-digit passcode. Please try again."
+      );
       console.warn("Passcode verification error:", err);
       dispatch(loginFailure(errMsg));
       Toast.show({
@@ -259,7 +265,10 @@ export default function LoginScreen() {
         });
       }
     } catch (err: any) {
-      const errMsg = err.message || "An unexpected network error occurred.";
+      const errMsg = cleanErrorMessage(
+        err?.response?.data?.message || err?.message,
+        "Login failed. Please check your credentials."
+      );
       console.warn("Password login error:", err);
       dispatch(loginFailure(errMsg));
       Toast.show({
@@ -884,25 +893,26 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: "center",
     paddingHorizontal: 24,
   },
   headerSection: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 28,
   },
   logo: {
-    width: 180,
-    height: 120,
-    marginBottom: 8,
+    width: 250,
+    height: 72,
+    marginBottom: 24,
   },
   portalBadge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
-    marginBottom: 10,
-    gap: 4,
+    marginBottom: 12,
+    gap: 5,
   },
   portalBadgeText: {
     fontSize: 12,
@@ -912,20 +922,20 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "900",
     letterSpacing: -0.5,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: "500",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 20,
     paddingHorizontal: 16,
   },
   authMethodTabs: {
     flexDirection: "row",
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 4,
-    marginBottom: 24,
+    marginBottom: 26,
     borderWidth: 1,
   },
   authMethodTab: {
@@ -933,8 +943,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 11,
+    borderRadius: 10,
     gap: 6,
   },
   authMethodTabText: {
@@ -950,7 +960,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   inputWrapper: {
     flexDirection: "row",
@@ -972,13 +982,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 12,
+    marginVertical: 18,
     position: "relative",
   },
   digitBox: {
-    width: 46,
+    flex: 1,
     height: 54,
-    borderRadius: 10,
+    marginHorizontal: 4,
+    borderRadius: 12,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
@@ -997,22 +1008,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 8,
+    marginTop: 12,
     paddingHorizontal: 2,
   },
   actionLinkBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   actionLinkText: {
     fontSize: 12,
   },
   testBanner: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 14,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   testBannerHeader: {
     flexDirection: "row",
@@ -1087,7 +1098,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
-    marginTop: 6,
+    marginTop: 8,
   },
   btnRow: {
     flexDirection: "row",
@@ -1107,7 +1118,7 @@ const styles = StyleSheet.create({
   },
   bottomSwitchRow: {
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 32,
   },
   switchMethodBtn: {
     flexDirection: "row",

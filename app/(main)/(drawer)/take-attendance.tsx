@@ -659,6 +659,16 @@ export default function TakeAttendanceScreen() {
     >
       <InternalHeader
         title="Take Attendance"
+        rightAction={
+          <TouchableOpacity
+            style={styles.headerQrBtn}
+            onPress={() => router.push('/(main)/(drawer)/qr-attendance')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="qr-code-outline" size={17} color="#fff" />
+            <Text style={styles.headerQrBtnText}>Scan QR</Text>
+          </TouchableOpacity>
+        }
         onBack={() => {
           if (router.canGoBack()) {
             router.back();
@@ -1258,6 +1268,20 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+  headerQrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#10b981",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 5,
+  },
+  headerQrBtnText: {
+    color: "#fff",
+    fontSize: 12,
     fontWeight: "700",
   },
 });

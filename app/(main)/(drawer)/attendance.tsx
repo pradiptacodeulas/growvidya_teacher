@@ -534,7 +534,7 @@ export default function AttendanceScreen() {
         <FlatList
           key={`${selectedClass}-${selectedSection}-${selectedYear}-${selectedDate}`}
           data={filteredStudents}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item, index) => String(item.student_id || item.id || item.attendance_id || item.admission_number || index)}
           renderItem={renderStudentItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -572,15 +572,26 @@ export default function AttendanceScreen() {
                   </View>
                 </View>
 
-                {/* Take Attendance Button */}
-                <TouchableOpacity
-                  style={[styles.markAttendanceBtn, { backgroundColor: colors.primary }]}
-                  onPress={navigateToTakeAttendance}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="checkbox-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.markAttendanceBtnText}>Take Attendance</Text>
-                </TouchableOpacity>
+                {/* Action Buttons: Scan QR Code & Take Attendance */}
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#10b981' }]}
+                    onPress={() => router.push('/(main)/(drawer)/qr-attendance')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="qr-code-outline" size={19} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.actionBtnText}>Scan ID QR</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+                    onPress={navigateToTakeAttendance}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkbox-outline" size={19} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.actionBtnText}>Take Attendance</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {/* Local search bar */}
                 <View style={[styles.searchBarContainer, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
@@ -970,6 +981,29 @@ const styles = StyleSheet.create({
   markAttendanceBtnText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '700',
   },
   headerTakeBtn: {
