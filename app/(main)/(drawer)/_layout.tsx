@@ -240,6 +240,14 @@ function CustomDrawerContent(props: any) {
           onPress={() => navigateTo('/(main)/(drawer)/(tabs)')}
         />
 
+        {/* My Attendance (geofence self check-in) - Flat */}
+        <DrawerNavItem
+          label="My Attendance"
+          iconName="finger-print-outline"
+          isActive={isActive('/(main)/(drawer)/my-attendance')}
+          onPress={() => navigateTo('/(main)/(drawer)/my-attendance')}
+        />
+
         {/* Ward [Students] Dropdown */}
         <DrawerNavItem
           label="Ward"
@@ -492,6 +500,7 @@ export default function DrawerLayout() {
         <Drawer.Screen name="attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="take-attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="qr-attendance" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="my-attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/schedule" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/attendance" options={{ drawerItemStyle: { display: 'none' } }} />
         <Drawer.Screen name="examination/results" options={{ drawerItemStyle: { display: 'none' } }} />

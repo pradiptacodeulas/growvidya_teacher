@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProfileCard from '@/components/ProfileCard';
@@ -8,6 +8,7 @@ import AttendanceCard from '@/components/AttendanceCard';
 import LeaveStatusCard from '@/components/LeaveStatusCard';
 import SchedulesCard from '@/components/SchedulesCard';
 import SyllabusLessonPlanCard from '@/components/SyllabusLessonPlanCard';
+import TodayAttendanceCard from '@/components/TodayAttendanceCard';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAppSelector, useAppDispatch } from '@/redux/hooks';
 import { fetchDashboard } from '@/redux/features/dashboard/thunks';
@@ -20,9 +21,11 @@ export default function HomeScreen() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { colors } = useAppTheme();
+  const [attendanceRefreshKey, setAttendanceRefreshKey] = useState(0);
 
   const onRefresh = useCallback(() => {
     dispatch(fetchDashboard());
+    setAttendanceRefreshKey((k) => k + 1);
   }, [dispatch]);
 
   // Re-fetch dashboard data whenever screen comes into focus
@@ -100,6 +103,11 @@ export default function HomeScreen() {
           subjectName={teacherData.subjectName}
           avatarUrl={teacherData.avatarUrl}
           onEditPress={() => router.push('/(main)/(drawer)/profile-edit')}
+        />
+
+        <TodayAttendanceCard
+          refreshKey={attendanceRefreshKey}
+          onMarkPress={() => router.push('/(main)/(drawer)/my-attendance' as any)}
         />
 
         <SyllabusStatusCard 

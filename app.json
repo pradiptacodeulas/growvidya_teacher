@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.growvidya.teacher"
+      "bundleIdentifier": "in.growvidya.teacher",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GrowVidya uses your location to verify you are inside the school campus when marking attendance."
+      }
     },
     "android": {
       "package": "in.growvidya.teacher",
@@ -54,6 +57,12 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Growvidya Teacher to access camera to scan student ID cards for attendance."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GrowVidya uses your location to verify you are inside the school campus when marking attendance."
         }
       ]
     ],
