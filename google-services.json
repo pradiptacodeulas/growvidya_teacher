@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "411064268983",
+    "project_id": "growvidya-cc88c",
+    "storage_bucket": "growvidya-cc88c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411064268983:android:1265a718503b3c79d2f532",
+        "android_client_info": {
+          "package_name": "in.growvidya.parent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-HkK9MGu3rYxbAlnTa0rhbDpWV_WpKJ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:411064268983:android:347c64a739d3aa9cd2f532",
+        "android_client_info": {
+          "package_name": "in.growvidya.teacher"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-HkK9MGu3rYxbAlnTa0rhbDpWV_WpKJ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
